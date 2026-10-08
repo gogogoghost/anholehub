@@ -1,0 +1,143 @@
+package cc.jaxy.anlobehub.core.designsystem.component
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import cc.jaxy.anlobehub.core.designsystem.theme.AnlobehubTheme
+
+// 头像底色/前景色：5 种 tonal 预设，按名字 hash 循环，保证同一名字颜色稳定
+@Composable
+private fun avatarColors(name: String?): Pair<Color, Color> {
+    val scheme = MaterialTheme.colorScheme
+    val presets =
+        listOf(
+            scheme.primaryContainer to scheme.onPrimaryContainer,
+            scheme.secondaryContainer to scheme.onSecondaryContainer,
+            scheme.tertiaryContainer to scheme.onTertiaryContainer,
+            scheme.errorContainer to scheme.onErrorContainer,
+            scheme.surfaceVariant to scheme.onSurfaceVariant,
+        )
+    val index = ((name?.hashCode() ?: 0) and Int.MAX_VALUE) % presets.size
+    return presets[index]
+}
+
+// 通用头像：有 url 则加载圆形图片（加载中/失败透出底层首字回退），无则首字 + hash 配色
+@Composable
+fun InitialAvatar(
+    name: String?,
+    avatarUrl: String? = null,
+    size: Dp = 40.dp,
+    modifier: Modifier = Modifier,
+) {
+    val (container, onContainer) = avatarColors(name)
+    // 首字：去空格取第一个字符，空名字用 ? 占位
+    val initial = name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    Box(
+        modifier =
+            modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(container),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = initial,
+            style = MaterialTheme.typography.titleMedium,
+            color = onContainer,
+        )
+        if (!avatarUrl.isNullOrBlank()) {
+            // 圆形裁剪 + 裁剪填充；占位/失败时 AsyncImage 无内容，透出底层首字即回退
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = null,
+                modifier = Modifier.matchParentSize().clip(CircleShape),
+                contentScale = ContentScale.Crop,
+            )
+        }
+    }
+}
+
+// 小胶囊：模型名等短标签展示
+@Composable
+fun ModelBadge(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            maxLines = 1,
+        )
+    }
+}
+
+@Preview(name = "Avatar-首字", showBackground = true)
+@Composable
+private fun InitialAvatarPreview() {
+    AnlobehubTheme {
+        Row(Modifier.padding(16.dp)) {
+            InitialAvatar(name = "安罗")
+            InitialAvatar(name = null, modifier = Modifier.padding(start = 8.dp))
+            // 有 url 时预览环境加载不出图片，透出底层首字即占位/失败回退态
+            InitialAvatar(name = "Anlo", avatarUrl = "https://example.com/avatar.png", modifier = Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+@Preview(
+    name = "Avatar-首字-深色",
+    showBackground = true,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES,
+)
+@Composable
+private fun InitialAvatarDarkPreview() {
+    AnlobehubTheme(darkTheme = true) {
+        Row(Modifier.padding(16.dp)) {
+            InitialAvatar(name = "Anlo")
+            InitialAvatar(name = "", modifier = Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+@Preview(name = "Badge", showBackground = true)
+@Composable
+private fun ModelBadgePreview() {
+    AnlobehubTheme {
+        ModelBadge(text = "gpt-4o", modifier = Modifier.padding(16.dp))
+    }
+}
+
+@Preview(
+    name = "Badge-深色",
+    showBackground = true,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES,
+)
+@Composable
+private fun ModelBadgeDarkPreview() {
+    AnlobehubTheme(darkTheme = true) {
+        ModelBadge(text = "claude-sonnet", modifier = Modifier.padding(16.dp))
+    }
+}

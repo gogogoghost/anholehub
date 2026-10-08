@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Agents strings: defaults are English, Chinese lives in values-zh-rCN/. -->
+<resources>
+    <string name="agents_title">Agents</string>
+    <string name="agents_refresh">Refresh</string>
+    <string name="agents_create">New agent</string>
+    <string name="agents_creating">Creating…</string>
+    <string name="agents_search_hint">Search agents</string>
+    <string name="agents_empty_title">No agents yet</string>
+    <string name="agents_empty_desc">Tap the button below to create one</string>
+    <string name="agents_no_match_title">No matching agents</string>
+    <string name="agents_no_match_desc">Try a different keyword</string>
+    <string name="agents_untitled">Untitled agent</string>
+    <string name="agents_inbox_badge">Lobe AI</string>
+    <string name="agents_inbox_subtitle">Default assistant</string>
+    <string name="agents_inbox_delete_error">The default assistant cannot be deleted</string>
+    <string name="agents_no_server">No server configured. Set the server address in Settings first.</string>
+    <string name="agents_create_title">New agent</string>
+    <string name="agents_create_title_label">Name</string>
+    <string name="agents_create_title_required">Please enter a name</string>
+    <string name="agents_create_system_role_label">System role</string>
+    <string name="agents_create_model_label">Model</string>
+    <string name="agents_create_model_auto">Auto</string>
+    <string name="agents_manage_title">Manage agent</string>
+    <string name="agents_manage_title_label">Name</string>
+    <string name="agents_manage_system_role_label">System role</string>
+    <string name="agents_manage_model_label">Model</string>
+    <string name="agents_manage_provider_label">Provider</string>
+    <string name="agents_manage_save">Save</string>
+    <string name="agents_manage_saving">Saving…</string>
+    <string name="agents_saved">Saved</string>
+    <string name="agents_duplicate">Duplicate</string>
+    <string name="agents_duplicating">Duplicating…</string>
+    <string name="agents_delete_title">Delete agent</string>
+    <string name="agents_delete_confirm_format">Delete \"%1$s\"? This cannot be undone.</string>
+</resources>

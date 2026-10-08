@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="agents_title">智能体</string>
+    <string name="agents_refresh">刷新</string>
+    <string name="agents_create">新建智能体</string>
+    <string name="agents_creating">新建中…</string>
+    <string name="agents_search_hint">搜索智能体</string>
+    <string name="agents_empty_title">暂无智能体</string>
+    <string name="agents_empty_desc">点右下角新建</string>
+    <string name="agents_no_match_title">无匹配智能体</string>
+    <string name="agents_no_match_desc">换个关键词试试</string>
+    <string name="agents_untitled">未命名智能体</string>
+    <string name="agents_inbox_badge">Lobe AI</string>
+    <string name="agents_inbox_subtitle">默认助手</string>
+    <string name="agents_inbox_delete_error">默认助手不可删除</string>
+    <string name="agents_no_server">尚未设置服务器，请先前往设置页配置服务器地址</string>
+    <string name="agents_create_title">新建智能体</string>
+    <string name="agents_create_title_label">名称</string>
+    <string name="agents_create_title_required">请填写名称</string>
+    <string name="agents_create_system_role_label">系统角色</string>
+    <string name="agents_create_model_label">模型</string>
+    <string name="agents_create_model_auto">自动</string>
+    <string name="agents_manage_title">管理智能体</string>
+    <string name="agents_manage_title_label">名称</string>
+    <string name="agents_manage_system_role_label">系统角色</string>
+    <string name="agents_manage_model_label">模型</string>
+    <string name="agents_manage_provider_label">服务商</string>
+    <string name="agents_manage_save">保存</string>
+    <string name="agents_manage_saving">保存中…</string>
+    <string name="agents_saved">已保存</string>
+    <string name="agents_duplicate">复制</string>
+    <string name="agents_duplicating">复制中…</string>
+    <string name="agents_delete_title">删除智能体</string>
+    <string name="agents_delete_confirm_format">确定删除「%1$s」吗？删除后不可恢复。</string>
+</resources>

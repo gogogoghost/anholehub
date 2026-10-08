@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="models_title">选择模型</string>
+    <string name="models_search_hint">搜索模型</string>
+    <string name="models_empty_title">暂无可用模型</string>
+    <string name="models_empty_desc">请检查服务端模型配置</string>
+    <string name="models_no_match_title">无匹配模型</string>
+    <string name="models_no_match_desc">换个关键词试试</string>
+    <string name="models_no_server">尚未设置服务器，请先前往设置页配置服务器地址</string>
+</resources>

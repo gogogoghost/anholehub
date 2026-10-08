@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shared strings: defaults are English, Chinese lives in values-zh-rCN/. -->
+<resources>
+    <!-- Common actions -->
+    <string name="common_retry">Retry</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_confirm">OK</string>
+    <string name="common_close">Close</string>
+    <string name="common_create">Create</string>
+    <string name="common_clear">Clear</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_settings_title">Settings</string>
+
+    <!-- Centralized AnError messages (see ErrorUiText.kt) -->
+    <string name="error_network_unreachable">Network unreachable. Check your connection or server address.</string>
+    <string name="error_auth_invalid_credentials">Incorrect email or password.</string>
+    <string name="error_http_no_status">Request failed. Please retry.</string>
+    <string name="error_http_client_format">Bad request (HTTP %1$d). Check and retry.</string>
+    <string name="error_http_server_format">Server error (HTTP %1$d). Retry later.</string>
+    <string name="error_session_expired">Session expired. Please sign in again.</string>
+    <string name="error_service_failed">Service request failed. Retry later.</string>
+    <string name="error_invalid_input">Invalid input. Please check and retry.</string>
+    <string name="error_unknown">Unknown error. Retry later.</string>
+
+    <!-- Password field -->
+    <string name="ds_password_label">Password</string>
+    <string name="ds_password_show">Show password</string>
+    <string name="ds_password_hide">Hide password</string>
+
+    <!-- Relative time -->
+    <string name="ds_relative_now">Just now</string>
+    <string name="ds_relative_yesterday">Yesterday</string>
+    <plurals name="ds_relative_minutes_ago">
+        <item quantity="one">%d minute ago</item>
+        <item quantity="other">%d minutes ago</item>
+    </plurals>
+    <plurals name="ds_relative_hours_ago">
+        <item quantity="one">%d hour ago</item>
+        <item quantity="other">%d hours ago</item>
+    </plurals>
+
+    <!-- Appearance (theme + language), shared by settings and server screens -->
+    <string name="ds_theme_title">Theme</string>
+    <string name="ds_theme_system">Follow system</string>
+    <string name="ds_theme_light">Light</string>
+    <string name="ds_theme_dark">Dark</string>
+    <string name="ds_language_title">Language</string>
+    <string name="ds_language_system">Follow system</string>
+    <string name="ds_language_chinese">Chinese</string>
+    <string name="ds_language_english">English</string>
+</resources>

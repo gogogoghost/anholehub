@@ -1,0 +1,61 @@
+package cc.jaxy.anlobehub.app
+
+import android.app.Activity
+import android.app.Application
+import android.os.Bundle
+import cc.jaxy.anlobehub.core.common.preferences.AppLanguage
+import cc.jaxy.anlobehub.core.data.preferences.UiPreferencesStore
+import dagger.hilt.android.HiltAndroidApp
+import java.lang.ref.WeakReference
+import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
+
+@HiltAndroidApp
+class AnlobehubApp : Application() {
+
+    @Inject
+    lateinit var uiPreferences: UiPreferencesStore
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var foregroundActivity = WeakReference<Activity>(null)
+    private var appliedTag: String? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: Activity) {
+                foregroundActivity = WeakReference(activity)
+            }
+
+            override fun onActivityPaused(activity: Activity) = Unit
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+            override fun onActivityStarted(activity: Activity) = Unit
+            override fun onActivityStopped(activity: Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+            override fun onActivityDestroyed(activity: Activity) = Unit
+        })
+        // Recreate the foreground activity when the language changes at runtime.
+        // Startup locale is handled by MainActivity.attachBaseContext.
+        appScope.launch {
+            uiPreferences.language
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { language ->
+                    applyLanguage(language)
+                }
+        }
+    }
+
+    private fun applyLanguage(language: AppLanguage) {
+        // drop(1) already skipped the startup emission; every emission here
+        // is a genuine runtime change → recreate to apply the new locale.
+        if (appliedTag == language.tag) return
+        appliedTag = language.tag
+        foregroundActivity.get()?.recreate()
+    }
+}

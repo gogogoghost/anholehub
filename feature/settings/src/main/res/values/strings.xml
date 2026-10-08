@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings strings: defaults are English, Chinese lives in values-zh-rCN/. -->
+<resources>
+    <string name="settings_signout_title">Sign out</string>
+    <string name="settings_signout_text">Sign out of the current account? You will need to sign in again.</string>
+    <string name="settings_signout_subtitle">Sign out of the current account</string>
+    <string name="switch_title">Switch server</string>
+    <string name="switch_text">Switching servers clears the current server address. Continue?</string>
+    <string name="switch_subtitle">Change the server address</string>
+    <string name="section_account">Account</string>
+    <string name="section_server">Server</string>
+    <string name="section_content">Content</string>
+    <string name="section_actions">Actions</string>
+    <string name="section_appearance">Appearance</string>
+    <string name="server_address">Server address</string>
+    <string name="server_unset">Not set</string>
+    <string name="server_copied">Server address copied</string>
+    <string name="kb_title">Knowledge bases</string>
+    <string name="browse">Browse</string>
+    <string name="version_format">Version %1$s</string>
+    <string name="account_signed_out">Signed out</string>
+    <string name="account_signed_in">Signed in</string>
+    <string name="no_server">No server configured. Set the server address first.</string>
+    <string name="kb_empty_title">No knowledge bases</string>
+    <string name="kb_untitled">Untitled knowledge base</string>
+    <string name="kb_wip">Knowledge base details coming soon</string>
+    <string name="discovery_empty_desc">Pull to refresh, or check back later</string>
+</resources>

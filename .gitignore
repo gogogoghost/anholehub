@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+**/build/
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+*.hprof
+
+# Keystore
+*.jks
+*.keystore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local overrides
+*.orig
+*.rej

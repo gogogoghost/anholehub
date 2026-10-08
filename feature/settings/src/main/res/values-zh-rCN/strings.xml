@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_signout_title">退出登录</string>
+    <string name="settings_signout_text">确定要退出当前账号吗？退出后需要重新登录。</string>
+    <string name="settings_signout_subtitle">退出当前账号</string>
+    <string name="switch_title">切换服务器</string>
+    <string name="switch_text">切换服务器将清空当前服务器地址，确定继续吗？</string>
+    <string name="switch_subtitle">更换服务器地址</string>
+    <string name="section_account">账号</string>
+    <string name="section_server">服务器</string>
+    <string name="section_content">内容</string>
+    <string name="section_actions">操作</string>
+    <string name="section_appearance">外观</string>
+    <string name="server_address">服务器地址</string>
+    <string name="server_unset">未设置</string>
+    <string name="server_copied">已复制服务器地址</string>
+    <string name="kb_title">知识库</string>
+    <string name="browse">浏览</string>
+    <string name="version_format">版本号 %1$s</string>
+    <string name="account_signed_out">未登录</string>
+    <string name="account_signed_in">已登录</string>
+    <string name="no_server">尚未设置服务器，请先配置服务器地址</string>
+    <string name="kb_empty_title">暂无知识库</string>
+    <string name="kb_untitled">未命名知识库</string>
+    <string name="kb_wip">知识库详情开发中</string>
+    <string name="discovery_empty_desc">下拉刷新试试，或稍后再来看看</string>
+</resources>

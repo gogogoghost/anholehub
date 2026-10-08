@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chat strings: defaults are English, Chinese lives in values-zh-rCN/. -->
+<resources>
+    <string name="chat_attach_read_failed">Failed to read the attachment. Please retry.</string>
+    <string name="chat_attach_too_large_format">File exceeds %1$dMB and was rejected.</string>
+    <string name="chat_attach_fallback">Attachment</string>
+    <string name="chat_attach_uploading">Uploading…</string>
+    <string name="chat_action_attach">Add attachment</string>
+    <string name="chat_input_hint">Type a message…</string>
+    <string name="chat_action_stop">Stop</string>
+    <string name="chat_action_send">Send</string>
+    <string name="chat_topic_all">All</string>
+    <string name="chat_topic_untitled">Topic</string>
+    <string name="chat_topic_new">+ New</string>
+    <string name="chat_empty_title">Start a conversation</string>
+    <string name="chat_empty_desc">Send your first message to chat with AI.</string>
+    <string name="chat_new_topic_title">New topic</string>
+    <string name="chat_new_topic_hint">Topic title</string>
+    <string name="chat_empty_message">(Empty message)</string>
+    <string name="chat_default_title">Chat</string>
+    <string name="chat_default_model">Default model</string>
+    <string name="chat_no_server">No server address configured. Please set the server address first.</string>
+    <string name="chat_topic_title_empty">Topic title cannot be empty.</string>
+    <string name="chat_no_stream_task">Server did not return a streaming task. Please retry.</string>
+    <string name="chat_gateway_missing">Gateway is not configured. Check the server gateway settings.</string>
+    <string name="chat_session_expired_reenter">Session expired. Please re-enter the conversation.</string>
+    <string name="chat_stream_interrupted">Streaming was interrupted. Please retry.</string>
+    <string name="chat_agent_history">Topic history</string>
+</resources>

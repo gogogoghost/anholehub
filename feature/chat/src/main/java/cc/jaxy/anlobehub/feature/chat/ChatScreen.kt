@@ -1,0 +1,665 @@
+package cc.jaxy.anlobehub.feature.chat
+
+import android.app.Activity
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cc.jaxy.anlobehub.core.data.chat.AIModel
+import cc.jaxy.anlobehub.core.data.chat.ChatMessage
+import cc.jaxy.anlobehub.core.data.chat.ChatTopic
+import cc.jaxy.anlobehub.core.data.files.UploadedFile
+import cc.jaxy.anlobehub.core.designsystem.component.AnTopBar
+import cc.jaxy.anlobehub.core.designsystem.component.EmptyBox
+import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
+import cc.jaxy.anlobehub.core.designsystem.component.MarkdownText
+import cc.jaxy.anlobehub.core.designsystem.component.ModelBadge
+import cc.jaxy.anlobehub.core.designsystem.component.RefreshBox
+import cc.jaxy.anlobehub.core.designsystem.R as DsR
+import cc.jaxy.anlobehub.core.designsystem.component.relativeTimeText
+import cc.jaxy.anlobehub.core.designsystem.text.resolve
+import cc.jaxy.anlobehub.core.designsystem.theme.AnlobehubTheme
+import cc.jaxy.anlobehub.core.designsystem.theme.hapticTick
+import cc.jaxy.anlobehub.core.designsystem.theme.spacing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private const val MAX_ATTACH_BYTES = 10 * 1024 * 1024
+
+@Composable
+fun ChatScreen(
+    onOpenModelPicker: (current: AIModel?) -> Unit = {},
+) {
+    ChatScreenWired(onOpenModelPicker = onOpenModelPicker)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChatScreenWired(
+    viewModel: ChatViewModel = hiltViewModel(),
+    onOpenModelPicker: (current: AIModel?) -> Unit = {},
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val listState = rememberLazyListState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val error = uiState.error
+    val errorText = error?.resolve()
+    LaunchedEffect(errorText) {
+        if (errorText != null) {
+            snackbar.showSnackbar(errorText)
+            viewModel.clearError()
+        }
+    }
+
+    val totalItems = uiState.messages.size + if (uiState.streaming) 1 else 0
+    LaunchedEffect(totalItems, uiState.streamingText) {
+        if (totalItems > 0) {
+            runCatching { listState.scrollToItem(totalItems - 1) }
+        }
+    }
+
+    val attachReadFailed = stringResource(R.string.chat_attach_read_failed)
+    val attachTooLarge = stringResource(R.string.chat_attach_too_large_format, 10)
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val bytes = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+            }
+            if (bytes == null) {
+                snackbar.showSnackbar(attachReadFailed)
+                return@launch
+            }
+            if (bytes.size > MAX_ATTACH_BYTES) {
+                snackbar.showSnackbar(attachTooLarge)
+                return@launch
+            }
+            val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+                ?.takeIf { it.isNotBlank() } ?: "image/*"
+            val name = runCatching {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && idx >= 0) cursor.getString(idx) else null
+                }
+            }.getOrNull()?.takeIf { !it.isNullOrBlank() } ?: "image"
+            viewModel.attach(bytes, name, mime)
+        }
+    }
+
+    ChatContent(
+        title = viewModel.agentTitle?.takeIf { it.isNotBlank() },
+        messages = uiState.messages,
+        streaming = uiState.streaming,
+        streamingText = uiState.streamingText,
+        topics = uiState.topics,
+        activeTopicId = uiState.activeTopicId,
+        models = uiState.models,
+        activeModel = uiState.activeModel,
+        pendingFiles = uiState.pendingFiles,
+        uploading = uiState.uploading,
+        listState = listState,
+        snackbar = snackbar,
+        onSelectTopic = viewModel::selectTopic,
+        onCreateTopic = viewModel::createTopic,
+        onOpenModelPicker = { onOpenModelPicker(uiState.activeModel) },
+        onSend = { text, fileIds -> viewModel.send(text, fileIds) },
+        onStop = viewModel::stop,
+        onAttachClick = { pickImage.launch("image/*") },
+        onRemoveFile = viewModel::removePendingFile,
+        onRefresh = viewModel::load,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChatContent(
+    messages: List<ChatMessage>,
+    streaming: Boolean,
+    streamingText: String,
+    topics: List<ChatTopic>,
+    activeTopicId: String?,
+    models: List<AIModel>,
+    activeModel: AIModel?,
+    pendingFiles: List<UploadedFile>,
+    uploading: Boolean,
+    title: String? = null,
+    listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
+    snackbar: SnackbarHostState = remember { SnackbarHostState() },
+    onSelectTopic: (String?) -> Unit = {},
+    onCreateTopic: (String) -> Unit = {},
+    onOpenModelPicker: () -> Unit = {},
+    onSend: (String, List<String>) -> Unit = { _, _ -> },
+    onStop: () -> Unit = {},
+    onAttachClick: () -> Unit = {},
+    onRemoveFile: (UploadedFile) -> Unit = {},
+    onRefresh: () -> Unit = {},
+) {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val view = LocalView.current
+    var showNewTopicDialog by remember { mutableStateOf(false) }
+    var newTopicTitle by rememberSaveable { mutableStateOf("") }
+    var input by rememberSaveable { mutableStateOf("") }
+
+    var showTopicHistory by remember { mutableStateOf(false) }
+    val barTitle = title?.takeIf { it.isNotBlank() }
+        ?: stringResource(R.string.chat_default_title)
+    val sendEnabled = input.isNotBlank() && !streaming
+
+    fun doSend() {
+        val text = input.trim()
+        if (text.isBlank() || streaming) return
+        onSend(text, pendingFiles.mapNotNull { it.id.takeIf { id -> id.isNotBlank() } })
+        input = ""
+        hapticTick(view)
+    }
+
+    Scaffold(
+        topBar = {
+            AnTopBar(
+                title = barTitle,
+                onBack = { activity?.finish() },
+                actions = {
+                    IconButton(onClick = { showTopicHistory = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.Forum,
+                            contentDescription = stringResource(R.string.chat_agent_history),
+                        )
+                    }
+                    TextButton(
+                        onClick = onOpenModelPicker,
+                        enabled = models.isNotEmpty(),
+                    ) {
+                        ModelBadge(
+                            text = activeModel?.displayName?.takeIf { it.isNotBlank() }
+                                ?: activeModel?.id?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.chat_default_model),
+                        )
+                    }
+                },
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            Surface(tonalElevation = 3.dp) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(
+                            horizontal = MaterialTheme.spacing.l,
+                            vertical = MaterialTheme.spacing.s,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
+                ) {
+                    if (pendingFiles.isNotEmpty() || uploading) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s)) {
+                            items(
+                                count = pendingFiles.size,
+                                key = { index ->
+                                    val file = pendingFiles[index]
+                                    file.id.ifBlank { file.url.orEmpty() }.ifBlank { "pending-$index" }
+                                },
+                            ) { index ->
+                                val file = pendingFiles[index]
+                                val label = file.url?.substringAfterLast("/")?.takeIf { it.isNotBlank() }
+                                    ?: file.id.take(8).takeIf { it.isNotBlank() }
+                                    ?: stringResource(R.string.chat_attach_fallback)
+                                AssistChip(
+                                    onClick = { onRemoveFile(file) },
+                                    label = { Text("× $label") },
+                                )
+                            }
+                            if (uploading) {
+                                item(key = "uploading") {
+                                    AssistChip(onClick = {}, label = { Text(stringResource(R.string.chat_attach_uploading)) })
+                                }
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (uploading) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        } else {
+                            IconButton(
+                                onClick = onAttachClick,
+                                enabled = !streaming && !uploading,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.AttachFile,
+                                    contentDescription = stringResource(R.string.chat_action_attach),
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = input,
+                            onValueChange = { input = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text(stringResource(R.string.chat_input_hint)) },
+                            shape = RoundedCornerShape(24.dp),
+                            maxLines = 6,
+                            enabled = !streaming,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { doSend() }),
+                        )
+                        if (streaming) {
+                            SmallFloatingActionButton(onClick = onStop) {
+                                Icon(imageVector = Icons.Filled.Stop, contentDescription = stringResource(R.string.chat_action_stop))
+                            }
+                        } else {
+                            SmallFloatingActionButton(
+                                onClick = { doSend() },
+                                modifier = Modifier.alpha(if (sendEnabled) 1f else 0.5f),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = stringResource(R.string.chat_action_send),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = MaterialTheme.spacing.l,
+                        vertical = MaterialTheme.spacing.xs,
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                item(key = "all") {
+                    FilterChip(
+                        selected = activeTopicId == null,
+                        onClick = { onSelectTopic(null) },
+                        label = { Text(stringResource(R.string.chat_topic_all)) },
+                    )
+                }
+                items(topics, key = { it.id }) { topic ->
+                    FilterChip(
+                        selected = activeTopicId == topic.id,
+                        onClick = { onSelectTopic(topic.id) },
+                        label = { Text(topic.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chat_topic_untitled)) },
+                    )
+                }
+                item(key = "new-topic") {
+                    AssistChip(
+                        onClick = {
+                            newTopicTitle = ""
+                            showNewTopicDialog = true
+                        },
+                        label = { Text(stringResource(R.string.chat_topic_new)) },
+                        leadingIcon = {
+                            Icon(imageVector = Icons.Filled.Add, contentDescription = null)
+                        },
+                    )
+                }
+            }
+            RefreshBox(
+                refreshing = false,
+                onRefresh = onRefresh,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (messages.isEmpty() && !streaming) {
+                    EmptyBox(
+                        icon = Icons.Filled.Forum,
+                        title = stringResource(R.string.chat_empty_title),
+                        description = stringResource(R.string.chat_empty_desc),
+                    )
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = MaterialTheme.spacing.l),
+                        verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
+                    ) {
+                        items(
+                            messages,
+                            key = { it.id.ifBlank { it.hashCode().toString() } },
+                            contentType = { if (it.role == "user") "user" else "assistant" },
+                        ) { message ->
+                            MessageRow(message = message)
+                        }
+                        if (streaming) {
+                            item(key = "streaming", contentType = "streaming") {
+                                StreamingRow(
+                                    text = streamingText,
+                                    modelName = activeModel?.displayName ?: activeModel?.id,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showTopicHistory) {
+        AlertDialog(
+            onDismissRequest = { showTopicHistory = false },
+            title = { Text(stringResource(R.string.chat_agent_history)) },
+            text = {
+                LazyColumn {
+                    item(key = "all") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = activeTopicId == null,
+                                onClick = {
+                                    onSelectTopic(null)
+                                    showTopicHistory = false
+                                },
+                            )
+                            Text(stringResource(R.string.chat_topic_all))
+                        }
+                    }
+                    items(topics, key = { it.id }) { topic ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = activeTopicId == topic.id,
+                                onClick = {
+                                    onSelectTopic(topic.id)
+                                    showTopicHistory = false
+                                },
+                            )
+                            Column(modifier = Modifier.padding(vertical = MaterialTheme.spacing.xs)) {
+                                Text(
+                                    topic.title?.takeIf { it.isNotBlank() }
+                                        ?: stringResource(R.string.chat_topic_untitled),
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTopicHistory = false }) {
+                    Text(stringResource(DsR.string.common_close))
+                }
+            },
+        )
+    }
+    if (showNewTopicDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewTopicDialog = false },
+            title = { Text(stringResource(R.string.chat_new_topic_title)) },
+            text = {
+                OutlinedTextField(
+                    value = newTopicTitle,
+                    onValueChange = { newTopicTitle = it },
+                    placeholder = { Text(stringResource(R.string.chat_new_topic_hint)) },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onCreateTopic(newTopicTitle)
+                        showNewTopicDialog = false
+                    },
+                    enabled = newTopicTitle.isNotBlank(),
+                ) {
+                    Text(stringResource(DsR.string.common_create))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewTopicDialog = false }) {
+                    Text(stringResource(DsR.string.common_cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun MessageRow(message: ChatMessage) {
+    val isUser = message.role == "user"
+    if (isUser) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            Surface(
+                tonalElevation = 2.dp,
+                shape = RoundedCornerShape(
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = 16.dp,
+                    bottomEnd = 4.dp,
+                ),
+                color = MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Column(modifier = Modifier.padding(MaterialTheme.spacing.l)) {
+                    Text(
+                        text = message.content.ifBlank { stringResource(R.string.chat_empty_message) },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Timestamp(createdAt = message.createdAt)
+                }
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
+            verticalAlignment = Alignment.Top,
+        ) {
+            InitialAvatar(name = message.model?.takeIf { it.isNotBlank() } ?: "AI", size = 32.dp)
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Column(modifier = Modifier.padding(MaterialTheme.spacing.l)) {
+                    MarkdownText(markdown = message.content.ifBlank { stringResource(R.string.chat_empty_message) })
+                    if (!message.error.isNullOrBlank()) {
+                        Text(
+                            text = message.error!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = MaterialTheme.spacing.xs),
+                        )
+                    }
+                    Timestamp(createdAt = message.createdAt)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreamingRow(text: String, modelName: String? = null) {
+    val alpha by rememberInfiniteTransition(label = "cursor").animateFloat(
+        initialValue = 1f,
+        targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "cursorAlpha",
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
+        verticalAlignment = Alignment.Top,
+    ) {
+        InitialAvatar(name = modelName?.takeIf { it.isNotBlank() } ?: "AI", size = 32.dp)
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Column(modifier = Modifier.padding(MaterialTheme.spacing.l)) {
+                if (text.isBlank()) {
+                    Text(
+                        text = "▍",
+                        modifier = Modifier.alpha(alpha),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                } else {
+                    MarkdownText(markdown = text)
+                    Text(
+                        text = "▍",
+                        modifier = Modifier.alpha(alpha),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Timestamp(createdAt: Long?) {
+    val label = relativeTimeText(createdAt)
+    if (label.isNotBlank()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = MaterialTheme.spacing.xs),
+        )
+    }
+}
+
+@Preview(name = "Chat-Light")
+@Composable
+private fun ChatLightPreview() {
+    AnlobehubTheme(darkTheme = false) {
+        ChatContent(
+            messages = listOf(
+                ChatMessage(id = "u1", role = "user", content = "Hello, introduce yourself", createdAt = System.currentTimeMillis() - 5 * 60 * 1000),
+                ChatMessage(
+                    id = "a1",
+                    role = "assistant",
+                    content = "Hello! I am **Anlo**\n\n- Markdown supported\n- `code` highlighting\n\n```kotlin\nprintln(\"hi\")\n```",
+                    createdAt = System.currentTimeMillis() - 4 * 60 * 1000,
+                ),
+                ChatMessage(
+                    id = "a2",
+                    role = "assistant",
+                    content = "",
+                    createdAt = System.currentTimeMillis(),
+                    error = "Network hiccup, last message cut off",
+                ),
+            ),
+            streaming = true,
+            streamingText = "Typing a **Markdown** reply...",
+            topics = listOf(ChatTopic(id = "t1", title = "Chit-chat")),
+            activeTopicId = "t1",
+            models = listOf(AIModel(id = "gpt-4o", displayName = "GPT-4o")),
+            activeModel = AIModel(id = "gpt-4o", displayName = "GPT-4o"),
+            pendingFiles = emptyList(),
+            uploading = false,
+        )
+    }
+}
+
+@Preview(
+    name = "Chat-Dark",
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES,
+)
+@Composable
+private fun ChatDarkPreview() {
+    AnlobehubTheme(darkTheme = true) {
+        ChatContent(
+            messages = listOf(
+                ChatMessage(id = "u1", role = "user", content = "Write me a bubble sort", createdAt = System.currentTimeMillis() - 60 * 60 * 1000),
+                ChatMessage(
+                    id = "a1",
+                    role = "assistant",
+                    content = "Sure:\n\n```kotlin\nfun sort(a: IntArray) { a.sort() }\n```",
+                    createdAt = System.currentTimeMillis() - 30 * 60 * 1000,
+                ),
+            ),
+            streaming = true,
+            streamingText = "Generating code...",
+            topics = emptyList(),
+            activeTopicId = null,
+            models = listOf(AIModel(id = "gpt-4o", displayName = "GPT-4o")),
+            activeModel = AIModel(id = "gpt-4o", displayName = "GPT-4o"),
+            pendingFiles = emptyList(),
+            uploading = false,
+        )
+    }
+}

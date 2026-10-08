@@ -1,0 +1,190 @@
+package cc.jaxy.anlobehub.feature.agents
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import cc.jaxy.anlobehub.core.common.result.AnResult
+import cc.jaxy.anlobehub.core.data.agent.Agent
+import cc.jaxy.anlobehub.core.data.agent.AgentRepository
+import cc.jaxy.anlobehub.core.data.chat.AIModel
+import cc.jaxy.anlobehub.core.data.chat.ModelRepository
+import cc.jaxy.anlobehub.core.data.session.ServerStore
+import cc.jaxy.anlobehub.core.designsystem.text.UiText
+import cc.jaxy.anlobehub.core.designsystem.text.toUiText
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+@HiltViewModel
+class AgentsViewModel @Inject constructor(
+    private val serverStore: ServerStore,
+    private val agentRepository: AgentRepository,
+    private val modelRepository: ModelRepository,
+) : ViewModel() {
+
+    data class UiState(
+        val agents: List<Agent> = emptyList(),
+        val models: List<AIModel> = emptyList(),
+        val loading: Boolean = false,
+        val creating: Boolean = false,
+        val operatingIds: Set<String> = emptySet(),
+        val error: UiText? = null,
+    )
+
+    private val _uiState = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    private val _pendingModel = MutableStateFlow<AIModel?>(null)
+    val pendingModel: StateFlow<AIModel?> = _pendingModel.asStateFlow()
+
+    fun setCreateModel(model: AIModel?) {
+        _pendingModel.value = model
+    }
+
+    init {
+        refresh()
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(loading = true, error = null)
+            val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
+            if (baseUrl.isNullOrBlank()) {
+                _uiState.value = _uiState.value.copy(
+                    loading = false,
+                    error = UiText.Res(R.string.agents_no_server),
+                )
+                return@launch
+            }
+            when (val result = agentRepository.listAgents(baseUrl)) {
+                is AnResult.Ok -> {
+                    _uiState.value = _uiState.value.copy(
+                        loading = false,
+                        agents = result.value,
+                        error = null,
+                    )
+                    loadModels(baseUrl)
+                }
+                is AnResult.Err ->
+                    _uiState.value = _uiState.value.copy(
+                        loading = false,
+                        error = result.error.toUiText(),
+                    )
+            }
+        }
+    }
+
+    private suspend fun loadModels(baseUrl: String) {
+        when (val result = modelRepository.listModels(baseUrl)) {
+            is AnResult.Ok -> _uiState.value = _uiState.value.copy(models = result.value)
+            is AnResult.Err -> Unit
+        }
+    }
+
+    fun createAgent(title: String, systemRole: String?, model: String?, provider: String?) {
+        if (_uiState.value.creating) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(creating = true, error = null)
+            val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
+            if (baseUrl.isNullOrBlank()) {
+                _uiState.value = _uiState.value.copy(
+                    creating = false,
+                    error = UiText.Res(R.string.agents_no_server),
+                )
+                return@launch
+            }
+            when (val result = agentRepository.create(baseUrl, title, systemRole, model, provider)) {
+                is AnResult.Ok -> {
+                    _uiState.value = _uiState.value.copy(creating = false)
+                    _pendingModel.value = null
+                    refresh()
+                }
+                is AnResult.Err ->
+                    _uiState.value = _uiState.value.copy(
+                        creating = false,
+                        error = result.error.toUiText(),
+                    )
+            }
+        }
+    }
+
+    fun deleteAgent(id: String) {
+        val agent = _uiState.value.agents.find { it.id == id }
+        if (agent?.isInbox == true) {
+            _uiState.value = _uiState.value.copy(
+                error = UiText.Res(R.string.agents_inbox_delete_error),
+            )
+            return
+        }
+        if (id in _uiState.value.operatingIds) return
+        viewModelScope.launch {
+            val snapshot = _uiState.value.agents
+            _uiState.value = _uiState.value.copy(
+                agents = snapshot.filterNot { it.id == id },
+                operatingIds = _uiState.value.operatingIds + id,
+                error = null,
+            )
+            val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
+            if (baseUrl.isNullOrBlank()) {
+                _uiState.value = _uiState.value.copy(
+                    agents = snapshot,
+                    operatingIds = _uiState.value.operatingIds - id,
+                    error = UiText.Res(R.string.agents_no_server),
+                )
+                return@launch
+            }
+            when (val result = agentRepository.remove(baseUrl, id)) {
+                is AnResult.Ok -> {
+                    _uiState.value = _uiState.value.copy(
+                        operatingIds = _uiState.value.operatingIds - id,
+                    )
+                    refresh()
+                }
+                is AnResult.Err ->
+                    _uiState.value = _uiState.value.copy(
+                        agents = snapshot,
+                        operatingIds = _uiState.value.operatingIds - id,
+                        error = result.error.toUiText(),
+                    )
+            }
+        }
+    }
+
+    fun duplicateAgent(id: String) {
+        if (id in _uiState.value.operatingIds) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                operatingIds = _uiState.value.operatingIds + id,
+                error = null,
+            )
+            val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
+            if (baseUrl.isNullOrBlank()) {
+                _uiState.value = _uiState.value.copy(
+                    operatingIds = _uiState.value.operatingIds - id,
+                    error = UiText.Res(R.string.agents_no_server),
+                )
+                return@launch
+            }
+            when (val result = agentRepository.duplicate(baseUrl, id)) {
+                is AnResult.Ok -> {
+                    _uiState.value = _uiState.value.copy(
+                        operatingIds = _uiState.value.operatingIds - id,
+                    )
+                    refresh()
+                }
+                is AnResult.Err ->
+                    _uiState.value = _uiState.value.copy(
+                        operatingIds = _uiState.value.operatingIds - id,
+                        error = result.error.toUiText(),
+                    )
+            }
+        }
+    }
+
+    fun dismissError() {
+        _uiState.value = _uiState.value.copy(error = null)
+    }
+}
