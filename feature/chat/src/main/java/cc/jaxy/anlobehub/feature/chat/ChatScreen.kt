@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -29,8 +29,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,7 +40,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -47,7 +52,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,6 +66,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -75,7 +80,6 @@ import cc.jaxy.anlobehub.core.designsystem.component.AnTopBar
 import cc.jaxy.anlobehub.core.designsystem.component.EmptyBox
 import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
 import cc.jaxy.anlobehub.core.designsystem.component.MarkdownText
-import cc.jaxy.anlobehub.core.designsystem.component.ModelBadge
 import cc.jaxy.anlobehub.core.designsystem.component.RefreshBox
 import cc.jaxy.anlobehub.core.designsystem.R as DsR
 import cc.jaxy.anlobehub.core.designsystem.component.relativeTimeText
@@ -229,21 +233,16 @@ private fun ChatContent(
                 title = barTitle,
                 onBack = onBack,
                 actions = {
+                    IconButton(onClick = onNewConversation) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.chat_topic_new_conversation),
+                        )
+                    }
                     IconButton(onClick = { onLoadTopics(); showTopicHistory = true }) {
                         Icon(
                             imageVector = Icons.Filled.Forum,
                             contentDescription = stringResource(R.string.chat_agent_history),
-                        )
-                    }
-                    TextButton(
-                        onClick = onOpenModelPicker,
-                        enabled = models.isNotEmpty(),
-                        modifier = Modifier.widthIn(max = 160.dp),
-                    ) {
-                        ModelBadge(
-                            text = activeModel?.displayName?.takeIf { it.isNotBlank() }
-                                ?: activeModel?.id?.takeIf { it.isNotBlank() }
-                                ?: stringResource(R.string.chat_default_model),
                         )
                     }
                 },
@@ -263,6 +262,31 @@ private fun ChatContent(
                         ),
                     verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AssistChip(
+                            onClick = onOpenModelPicker,
+                            label = {
+                                Text(
+                                    activeModel?.displayName?.takeIf { it.isNotBlank() }
+                                        ?: activeModel?.id?.takeIf { it.isNotBlank() }
+                                        ?: stringResource(R.string.chat_default_model),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.SmartToy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(MaterialTheme.spacing.l),
+                                )
+                            },
+                        )
+                    }
                     if (pendingFiles.isNotEmpty() || uploading) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s)) {
                             items(
@@ -379,71 +403,69 @@ private fun ChatContent(
     }
 
     if (showTopicHistory) {
-        AlertDialog(
-            onDismissRequest = { showTopicHistory = false },
-            title = { Text(stringResource(R.string.chat_agent_history)) },
-            text = {
-                LazyColumn {
-                    item(key = "new-conversation") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    onNewConversation()
-                                    showTopicHistory = false
+        ModalBottomSheet(onDismissRequest = { showTopicHistory = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = MaterialTheme.spacing.l)
+                    .padding(bottom = MaterialTheme.spacing.xl),
+            ) {
+                Text(
+                    stringResource(R.string.chat_agent_history),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = MaterialTheme.spacing.s),
+                )
+                if (topics.isEmpty()) {
+                    Text(
+                        stringResource(R.string.chat_topic_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = MaterialTheme.spacing.m),
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+                    ) {
+                        items(topics, key = { it.id }) { topic ->
+                            val selected = activeTopicId == topic.id
+                            val time = relativeTimeText(topic.updatedAt ?: topic.createdAt)
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        topic.title?.takeIf { it.isNotBlank() }
+                                            ?: stringResource(R.string.chat_topic_untitled),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = if (selected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        },
+                                    )
                                 },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Add,
-                                    contentDescription = null,
-                                )
-                            }
-                            Text(stringResource(R.string.chat_topic_new_conversation))
-                        }
-                    }
-                    if (topics.isEmpty()) {
-                        item(key = "empty") {
-                            Text(
-                                stringResource(R.string.chat_topic_empty),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(
-                                    horizontal = MaterialTheme.spacing.l,
-                                    vertical = MaterialTheme.spacing.s,
-                                ),
-                            )
-                        }
-                    }
-                    items(topics, key = { it.id }) { topic ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(
-                                selected = activeTopicId == topic.id,
-                                onClick = {
+                                supportingContent = {
+                                    if (time.isNotBlank()) Text(time)
+                                },
+                                trailingContent = {
+                                    if (selected) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.clickable {
                                     onSelectTopic(topic.id)
                                     showTopicHistory = false
                                 },
                             )
-                            Column(modifier = Modifier.padding(vertical = MaterialTheme.spacing.xs)) {
-                                Text(
-                                    topic.title?.takeIf { it.isNotBlank() }
-                                        ?: stringResource(R.string.chat_topic_untitled),
-                                )
-                            }
+                            HorizontalDivider()
                         }
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showTopicHistory = false }) {
-                    Text(stringResource(DsR.string.common_close))
-                }
-            },
-        )
+            }
+        }
     }
 }
 

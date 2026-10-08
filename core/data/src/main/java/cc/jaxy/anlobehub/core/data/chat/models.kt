@@ -172,6 +172,25 @@ fun JsonElement.asTopicList(): List<ChatTopic> {
 fun JsonElement.asAIModelList(): List<AIModel> {
     return try {
         val obj = this as? JsonObject ?: return emptyList()
+        // Shape 0 (real getAiProviderRuntimeState): flat enabledAiModels[] +
+        // enabledAiProviders[] id->name map.
+        (obj["enabledAiModels"] as? JsonArray)?.let { models ->
+            val providerNames = (obj["enabledAiProviders"] as? JsonArray)
+                ?.mapNotNull { p ->
+                    val pObj = p as? JsonObject ?: return@mapNotNull null
+                    val id = pObj.stringOrNull("id") ?: return@mapNotNull null
+                    id to (pObj.stringOrNull("name") ?: id)
+                }?.toMap().orEmpty()
+            val out = models.mapNotNull { m ->
+                val mObj = m as? JsonObject ?: return@mapNotNull null
+                runCatching {
+                    mObj.toAIModel(
+                        fallbackProviderName = providerNames[mObj.stringOrNull("providerId")],
+                    )
+                }.getOrNull()
+            }
+            if (out.isNotEmpty()) return out
+        }
         // Shape 1: { providers: [{ id, name?, models: [...] }] }
         (obj["providers"] as? JsonArray)?.let { providers ->
             val out = mutableListOf<AIModel>()
