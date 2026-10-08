@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +28,7 @@ import cc.jaxy.anlobehub.core.common.model.parsePickedModel
 import cc.jaxy.anlobehub.core.data.chat.AIModel
 import cc.jaxy.anlobehub.core.designsystem.component.LoadingBox
 import cc.jaxy.anlobehub.feature.agents.AgentManageSheet
+import cc.jaxy.anlobehub.feature.agents.AgentManageViewModel
 import cc.jaxy.anlobehub.feature.agents.AgentsScreen
 import cc.jaxy.anlobehub.feature.agents.AgentsViewModel
 import cc.jaxy.anlobehub.feature.auth.ServerScreen
@@ -126,21 +128,27 @@ fun AnlobehubNavHost() {
         }
         composable<AgentsRoute> { entry ->
             val agentsViewModel: AgentsViewModel = hiltViewModel(entry)
+            val manageViewModel: AgentManageViewModel = hiltViewModel(entry)
+            var managingAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+            var pickingForManage by rememberSaveable { mutableStateOf(false) }
             val pickedRaw by entry.savedStateHandle.getStateFlow<String?>(PICKED_MODEL_KEY, null)
                 .collectAsStateWithLifecycle()
             LaunchedEffect(pickedRaw) {
                 parsePickedModel(pickedRaw)?.let { picked ->
-                    agentsViewModel.setCreateModel(
-                        AIModel(
-                            id = picked.modelId,
-                            displayName = picked.displayName,
-                            providerId = picked.providerId,
-                        ),
+                    val model = AIModel(
+                        id = picked.modelId,
+                        displayName = picked.displayName,
+                        providerId = picked.providerId,
                     )
+                    if (pickingForManage) {
+                        manageViewModel.setModel(model)
+                    } else {
+                        agentsViewModel.setCreateModel(model)
+                    }
+                    pickingForManage = false
                     entry.savedStateHandle[PICKED_MODEL_KEY] = null
                 }
             }
-            var managingAgentId by remember { mutableStateOf<String?>(null) }
             AgentsScreen(
                 onAgentClick = { agentId, agentTitle ->
                     navController.navigate(ChatRoute(agentId = agentId, agentTitle = agentTitle))
@@ -154,6 +162,16 @@ fun AnlobehubNavHost() {
                     agentId = agentId,
                     onDismiss = { managingAgentId = null },
                     onDeleted = { managingAgentId = null },
+                    onOpenModelPicker = { current ->
+                        pickingForManage = true
+                        navController.navigate(
+                            ModelPickerRoute(
+                                selectedModelId = current?.id,
+                                selectedProviderId = current?.providerId,
+                            ),
+                        )
+                    },
+                    viewModel = manageViewModel,
                 )
             }
         }

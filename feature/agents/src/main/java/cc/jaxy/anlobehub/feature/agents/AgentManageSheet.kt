@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -15,10 +18,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -38,6 +42,7 @@ import cc.jaxy.anlobehub.core.designsystem.component.AnTextField
 import cc.jaxy.anlobehub.core.designsystem.component.ErrorBox
 import cc.jaxy.anlobehub.core.designsystem.component.SkeletonList
 import cc.jaxy.anlobehub.core.designsystem.text.resolve
+import cc.jaxy.anlobehub.core.data.chat.AIModel
 import cc.jaxy.anlobehub.core.designsystem.theme.AnlobehubTheme
 import cc.jaxy.anlobehub.core.designsystem.theme.spacing
 
@@ -47,6 +52,7 @@ fun AgentManageSheet(
     agentId: String,
     onDismiss: () -> Unit,
     onDeleted: () -> Unit,
+    onOpenModelPicker: (current: AIModel?) -> Unit = {},
     viewModel: AgentManageViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -60,6 +66,7 @@ fun AgentManageSheet(
             title = uiState.title,
             systemRole = uiState.systemRole,
             model = uiState.model,
+            modelDisplayName = uiState.modelDisplayName,
             provider = uiState.provider,
             isInbox = uiState.isInbox,
             loading = uiState.loading,
@@ -70,7 +77,13 @@ fun AgentManageSheet(
             errorText = uiState.error?.resolve(),
             onTitleChange = viewModel::onTitleChange,
             onSystemRoleChange = viewModel::onSystemRoleChange,
-            onModelChange = viewModel::onModelChange,
+            onOpenModelPicker = {
+                val current = uiState.model.takeIf { it.isNotBlank() }?.let {
+                    AIModel(id = it, displayName = uiState.modelDisplayName, providerId = uiState.provider)
+                }
+                onOpenModelPicker(current)
+            },
+            onModelClear = viewModel::clearModel,
             onSave = viewModel::save,
             onDuplicate = viewModel::duplicate,
             onDeleteClick = { confirmDelete = true },
@@ -113,6 +126,7 @@ private fun AgentManageBody(
     title: String,
     systemRole: String,
     model: String,
+    modelDisplayName: String,
     provider: String,
     isInbox: Boolean,
     loading: Boolean,
@@ -123,7 +137,8 @@ private fun AgentManageBody(
     errorText: String?,
     onTitleChange: (String) -> Unit,
     onSystemRoleChange: (String) -> Unit,
-    onModelChange: (String) -> Unit,
+    onOpenModelPicker: () -> Unit,
+    onModelClear: () -> Unit,
     onSave: () -> Unit,
     onDuplicate: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -161,18 +176,29 @@ private fun AgentManageBody(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = false,
                 )
-                AnTextField(
-                    value = model,
-                    onValueChange = onModelChange,
-                    label = stringResource(R.string.agents_manage_model_label),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = provider,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text(stringResource(R.string.agents_manage_provider_label)) },
-                    modifier = Modifier.fillMaxWidth(),
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.agents_manage_model_label)) },
+                    supportingContent = {
+                        Text(
+                            modelDisplayName.takeIf { it.isNotBlank() }
+                                ?: model.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.agents_create_model_auto),
+                        )
+                    },
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (model.isNotBlank() || provider.isNotBlank()) {
+                                IconButton(onClick = onModelClear) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = stringResource(DsR.string.common_clear),
+                                    )
+                                }
+                            }
+                            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenModelPicker),
                 )
                 if (saved) {
                     Text(
@@ -243,6 +269,7 @@ private fun AgentManageBodyLightPreview() {
             title = "Translator",
             systemRole = "Translate the user input.",
             model = "gpt-4o",
+            modelDisplayName = "GPT-4o",
             provider = "openai",
             isInbox = false,
             loading = false,
@@ -253,7 +280,8 @@ private fun AgentManageBodyLightPreview() {
             errorText = null,
             onTitleChange = {},
             onSystemRoleChange = {},
-            onModelChange = {},
+            onOpenModelPicker = {},
+            onModelClear = {},
             onSave = {},
             onDuplicate = {},
             onDeleteClick = {},
@@ -274,6 +302,7 @@ private fun AgentManageBodyDarkPreview() {
             title = "",
             systemRole = "",
             model = "",
+            modelDisplayName = "",
             provider = "",
             isInbox = true,
             loading = false,
@@ -284,7 +313,8 @@ private fun AgentManageBodyDarkPreview() {
             errorText = null,
             onTitleChange = {},
             onSystemRoleChange = {},
-            onModelChange = {},
+            onOpenModelPicker = {},
+            onModelClear = {},
             onSave = {},
             onDuplicate = {},
             onDeleteClick = {},

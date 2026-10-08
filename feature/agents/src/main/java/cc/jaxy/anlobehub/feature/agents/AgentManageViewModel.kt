@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cc.jaxy.anlobehub.core.common.result.AnResult
 import cc.jaxy.anlobehub.core.data.agent.AgentRepository
+import cc.jaxy.anlobehub.core.data.chat.AIModel
 import cc.jaxy.anlobehub.core.data.session.ServerStore
 import cc.jaxy.anlobehub.core.designsystem.text.UiText
 import cc.jaxy.anlobehub.core.designsystem.text.toUiText
@@ -27,6 +28,7 @@ class AgentManageViewModel @Inject constructor(
         val title: String = "",
         val systemRole: String = "",
         val model: String = "",
+        val modelDisplayName: String = "",
         val provider: String = "",
         val isInbox: Boolean = false,
         val loading: Boolean = false,
@@ -104,8 +106,17 @@ class AgentManageViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(systemRole = v, saved = false)
     }
 
-    fun onModelChange(v: String) {
-        _uiState.value = _uiState.value.copy(model = v, saved = false)
+    fun setModel(model: AIModel?) {
+        _uiState.value = _uiState.value.copy(
+            model = model?.id.orEmpty(),
+            modelDisplayName = model?.displayName?.takeIf { it.isNotBlank() }.orEmpty(),
+            provider = model?.providerId.orEmpty(),
+            saved = false,
+        )
+    }
+
+    fun clearModel() {
+        _uiState.value = _uiState.value.copy(model = "", modelDisplayName = "", provider = "", saved = false)
     }
 
     fun save() {
