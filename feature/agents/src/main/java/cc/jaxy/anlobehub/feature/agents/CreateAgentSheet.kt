@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import cc.jaxy.anlobehub.core.data.chat.AIModel
 import cc.jaxy.anlobehub.core.designsystem.component.AnTextField
 import cc.jaxy.anlobehub.core.designsystem.theme.spacing
@@ -87,6 +88,8 @@ fun CreateAgentSheet(
                         selectedModel?.displayName?.takeIf { it.isNotBlank() }
                             ?: selectedModel?.id?.takeIf { it.isNotBlank() }
                             ?: stringResource(R.string.agents_create_model_auto),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 trailingContent = {

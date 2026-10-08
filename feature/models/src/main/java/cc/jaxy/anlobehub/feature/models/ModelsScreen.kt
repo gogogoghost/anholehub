@@ -60,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -312,11 +313,21 @@ private fun ModelRow(
     val isChat = model.type.isNullOrBlank() || model.type.equals("chat", ignoreCase = true)
     ListItem(
         headlineContent = {
-            Text(model.displayName?.takeIf { it.isNotBlank() } ?: model.id)
+            Text(
+                model.displayName?.takeIf { it.isNotBlank() } ?: model.id,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         },
         supportingContent = {
             Column {
-                Text(model.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    model.id,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 val extra = buildList {
                     if (!isChat) add(model.type!!.uppercase())
                     model.contextWindowTokens?.let { add(formatTokens(it)) }

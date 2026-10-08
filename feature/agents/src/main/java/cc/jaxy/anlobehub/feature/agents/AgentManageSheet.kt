@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cc.jaxy.anlobehub.core.designsystem.R as DsR
@@ -183,6 +184,8 @@ private fun AgentManageBody(
                             modelDisplayName.takeIf { it.isNotBlank() }
                                 ?: model.takeIf { it.isNotBlank() }
                                 ?: stringResource(R.string.agents_create_model_auto),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     },
                     trailingContent = {
