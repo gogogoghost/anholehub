@@ -84,15 +84,21 @@ class ChatViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(error = UiText.Res(R.string.chat_no_server))
                 return@launch
             }
-            val topics = when (val result = topicRepository.listTopics(baseUrl, agentId = effectiveAgentId())) {
-                is AnResult.Ok -> result.value
-                is AnResult.Err -> emptyList()
+            // Fresh topic by default: history loads lazily via loadTopics().
+            // A deep-linked topicId still needs the list to validate against.
+            val needTopics = initialTopicId != null || _uiState.value.activeTopicId != null
+            val topics = if (needTopics) {
+                when (val result = topicRepository.listTopics(baseUrl, agentId = effectiveAgentId())) {
+                    is AnResult.Ok -> result.value
+                    is AnResult.Err -> emptyList()
+                }
+            } else {
+                emptyList()
             }
             val keptTopic = _uiState.value.activeTopicId
                 ?.takeIf { id -> topics.any { it.id == id } }
             val deepLinkTopic = initialTopicId?.takeIf { id -> topics.any { it.id == id } }
             val activeTopicId = keptTopic ?: deepLinkTopic
-                ?: topics.firstOrNull()?.id?.takeIf { it.isNotBlank() }
             val models = when (val result = modelRepository.listModels(baseUrl)) {
                 is AnResult.Ok -> result.value
                 is AnResult.Err -> emptyList()
@@ -112,40 +118,28 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** Lazily loads topic history (called when the history panel opens). */
+    fun loadTopics() {
+        viewModelScope.launch {
+            val baseUrl = currentBaseUrl() ?: return@launch
+            when (val result = topicRepository.listTopics(baseUrl, agentId = effectiveAgentId())) {
+                is AnResult.Ok -> _uiState.value = _uiState.value.copy(topics = result.value)
+                is AnResult.Err -> _uiState.value = _uiState.value.copy(error = result.error.toUiText())
+            }
+        }
+    }
+
+    /** Starts a fresh conversation (clears active topic + messages). */
+    fun newConversation() {
+        if (_uiState.value.streaming) stop()
+        _uiState.value = _uiState.value.copy(activeTopicId = null, messages = emptyList(), error = null)
+    }
+
     fun selectTopic(id: String?) {
         if (_uiState.value.activeTopicId == id) return
         if (_uiState.value.streaming) stop()
         _uiState.value = _uiState.value.copy(activeTopicId = id)
         viewModelScope.launch { loadMessages() }
-    }
-
-    fun createTopic(title: String) {
-        val name = title.trim()
-        if (name.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = UiText.Res(R.string.chat_topic_title_empty))
-            return
-        }
-        viewModelScope.launch {
-            val baseUrl = currentBaseUrl()
-            if (baseUrl == null) {
-                _uiState.value = _uiState.value.copy(error = UiText.Res(R.string.chat_no_server))
-                return@launch
-            }
-            when (val created = topicRepository.createTopic(baseUrl, name, agentId = effectiveAgentId())) {
-                is AnResult.Ok -> {
-                    val topics = when (val listed = topicRepository.listTopics(baseUrl, agentId = effectiveAgentId())) {
-                        is AnResult.Ok -> listed.value
-                        is AnResult.Err -> _uiState.value.topics
-                    }
-                    _uiState.value = _uiState.value.copy(
-                        topics = topics,
-                        activeTopicId = created.value,
-                    )
-                    loadMessages()
-                }
-                is AnResult.Err -> _uiState.value = _uiState.value.copy(error = created.error.toUiText())
-            }
-        }
     }
 
     fun selectModel(model: AIModel) {
@@ -218,6 +212,11 @@ class ChatViewModel @Inject constructor(
     }
 
     private suspend fun loadMessages() {
+        // Fresh topic has no messages; don't query the server.
+        if (_uiState.value.activeTopicId == null) {
+            _uiState.value = _uiState.value.copy(messages = emptyList(), error = null)
+            return
+        }
         val baseUrl = currentBaseUrl()
         if (baseUrl == null) {
             _uiState.value = _uiState.value.copy(error = UiText.Res(R.string.chat_no_server))

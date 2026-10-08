@@ -169,7 +169,8 @@ private fun ChatScreenWired(
         listState = listState,
         snackbar = snackbar,
         onSelectTopic = viewModel::selectTopic,
-        onCreateTopic = viewModel::createTopic,
+        onLoadTopics = viewModel::loadTopics,
+        onNewConversation = viewModel::newConversation,
         onOpenModelPicker = { onOpenModelPicker(uiState.activeModel) },
         onSend = { text, fileIds -> viewModel.send(text, fileIds) },
         onStop = viewModel::stop,
@@ -195,7 +196,8 @@ private fun ChatContent(
     listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     onSelectTopic: (String?) -> Unit = {},
-    onCreateTopic: (String) -> Unit = {},
+    onLoadTopics: () -> Unit = {},
+    onNewConversation: () -> Unit = {},
     onOpenModelPicker: () -> Unit = {},
     onSend: (String, List<String>) -> Unit = { _, _ -> },
     onStop: () -> Unit = {},
@@ -206,8 +208,6 @@ private fun ChatContent(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
-    var showNewTopicDialog by remember { mutableStateOf(false) }
-    var newTopicTitle by rememberSaveable { mutableStateOf("") }
     var input by rememberSaveable { mutableStateOf("") }
 
     var showTopicHistory by remember { mutableStateOf(false) }
@@ -229,7 +229,7 @@ private fun ChatContent(
                 title = barTitle,
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = { showTopicHistory = true }) {
+                    IconButton(onClick = { onLoadTopics(); showTopicHistory = true }) {
                         Icon(
                             imageVector = Icons.Filled.Forum,
                             contentDescription = stringResource(R.string.chat_agent_history),
@@ -338,43 +338,6 @@ private fun ChatContent(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = MaterialTheme.spacing.l,
-                        vertical = MaterialTheme.spacing.xs,
-                    ),
-                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                item(key = "all") {
-                    FilterChip(
-                        selected = activeTopicId == null,
-                        onClick = { onSelectTopic(null) },
-                        label = { Text(stringResource(R.string.chat_topic_all)) },
-                    )
-                }
-                items(topics, key = { it.id }) { topic ->
-                    FilterChip(
-                        selected = activeTopicId == topic.id,
-                        onClick = { onSelectTopic(topic.id) },
-                        label = { Text(topic.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chat_topic_untitled)) },
-                    )
-                }
-                item(key = "new-topic") {
-                    AssistChip(
-                        onClick = {
-                            newTopicTitle = ""
-                            showNewTopicDialog = true
-                        },
-                        label = { Text(stringResource(R.string.chat_topic_new)) },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Filled.Add, contentDescription = null)
-                        },
-                    )
-                }
-            }
             RefreshBox(
                 refreshing = false,
                 onRefresh = onRefresh,
@@ -421,19 +384,36 @@ private fun ChatContent(
             title = { Text(stringResource(R.string.chat_agent_history)) },
             text = {
                 LazyColumn {
-                    item(key = "all") {
+                    item(key = "new-conversation") {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(
-                                selected = activeTopicId == null,
+                            IconButton(
                                 onClick = {
-                                    onSelectTopic(null)
+                                    onNewConversation()
                                     showTopicHistory = false
                                 },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Add,
+                                    contentDescription = null,
+                                )
+                            }
+                            Text(stringResource(R.string.chat_topic_new_conversation))
+                        }
+                    }
+                    if (topics.isEmpty()) {
+                        item(key = "empty") {
+                            Text(
+                                stringResource(R.string.chat_topic_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(
+                                    horizontal = MaterialTheme.spacing.l,
+                                    vertical = MaterialTheme.spacing.s,
+                                ),
                             )
-                            Text(stringResource(R.string.chat_topic_all))
                         }
                     }
                     items(topics, key = { it.id }) { topic ->
@@ -461,36 +441,6 @@ private fun ChatContent(
             confirmButton = {
                 TextButton(onClick = { showTopicHistory = false }) {
                     Text(stringResource(DsR.string.common_close))
-                }
-            },
-        )
-    }
-    if (showNewTopicDialog) {
-        AlertDialog(
-            onDismissRequest = { showNewTopicDialog = false },
-            title = { Text(stringResource(R.string.chat_new_topic_title)) },
-            text = {
-                OutlinedTextField(
-                    value = newTopicTitle,
-                    onValueChange = { newTopicTitle = it },
-                    placeholder = { Text(stringResource(R.string.chat_new_topic_hint)) },
-                    singleLine = true,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onCreateTopic(newTopicTitle)
-                        showNewTopicDialog = false
-                    },
-                    enabled = newTopicTitle.isNotBlank(),
-                ) {
-                    Text(stringResource(DsR.string.common_create))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showNewTopicDialog = false }) {
-                    Text(stringResource(DsR.string.common_cancel))
                 }
             },
         )
