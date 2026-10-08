@@ -8,4 +8,26 @@
     <string name="models_no_match_title">No matching models</string>
     <string name="models_no_match_desc">Try a different keyword</string>
     <string name="models_no_server">No server configured. Set the server address in Settings first.</string>
+    <string name="models_detail">Model details</string>
+    <string name="models_ability_vision">Vision</string>
+    <string name="models_ability_reasoning">Reasoning</string>
+    <string name="models_ability_tools">Tools</string>
+    <string name="models_ability_files">Files</string>
+    <string name="models_ability_audio">Audio</string>
+    <string name="models_ability_video">Video</string>
+    <string name="models_ability_image">Image</string>
+    <string name="models_ability_search">Search</string>
+    <string name="models_ability_json">JSON</string>
+    <string name="models_detail_context">Context</string>
+    <string name="models_detail_output">Max output</string>
+    <string name="models_detail_type">Type</string>
+    <string name="models_detail_description">Description</string>
+    <string name="models_detail_reasoning_title">Reasoning strength</string>
+    <string name="models_detail_effort">Effort</string>
+    <string name="models_detail_reasoning_effort">Reasoning effort</string>
+    <string name="models_detail_thinking_level">Thinking level</string>
+    <string name="models_detail_unset">Unset</string>
+    <string name="models_detail_saving">Saving…</string>
+    <string name="models_detail_saved">Saved</string>
+    <string name="models_detail_failed">Save failed</string>
 </resources>

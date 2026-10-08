@@ -183,6 +183,7 @@ fun AnlobehubNavHost() {
                         ),
                     )
                 },
+                onBack = { navController.popBackStack() },
             )
         }
         composable<SettingsRoute> { entry ->

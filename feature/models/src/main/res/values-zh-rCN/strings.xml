@@ -7,4 +7,26 @@
     <string name="models_no_match_title">无匹配模型</string>
     <string name="models_no_match_desc">换个关键词试试</string>
     <string name="models_no_server">尚未设置服务器，请先前往设置页配置服务器地址</string>
+    <string name="models_detail">模型详情</string>
+    <string name="models_ability_vision">视觉</string>
+    <string name="models_ability_reasoning">推理</string>
+    <string name="models_ability_tools">工具</string>
+    <string name="models_ability_files">文件</string>
+    <string name="models_ability_audio">音频</string>
+    <string name="models_ability_video">视频</string>
+    <string name="models_ability_image">图像</string>
+    <string name="models_ability_search">搜索</string>
+    <string name="models_ability_json">JSON</string>
+    <string name="models_detail_context">上下文</string>
+    <string name="models_detail_output">最大输出</string>
+    <string name="models_detail_type">类型</string>
+    <string name="models_detail_description">简介</string>
+    <string name="models_detail_reasoning_title">推理强度</string>
+    <string name="models_detail_effort">Effort</string>
+    <string name="models_detail_reasoning_effort">Reasoning effort</string>
+    <string name="models_detail_thinking_level">Thinking level</string>
+    <string name="models_detail_unset">未设置</string>
+    <string name="models_detail_saving">保存中…</string>
+    <string name="models_detail_saved">已保存</string>
+    <string name="models_detail_failed">保存失败</string>
 </resources>

@@ -1,6 +1,5 @@
 package cc.jaxy.anlobehub.feature.chat
 
-import android.app.Activity
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -92,8 +91,9 @@ private const val MAX_ATTACH_BYTES = 10 * 1024 * 1024
 @Composable
 fun ChatScreen(
     onOpenModelPicker: (current: AIModel?) -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
-    ChatScreenWired(onOpenModelPicker = onOpenModelPicker)
+    ChatScreenWired(onOpenModelPicker = onOpenModelPicker, onBack = onBack)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,6 +101,7 @@ fun ChatScreen(
 private fun ChatScreenWired(
     viewModel: ChatViewModel = hiltViewModel(),
     onOpenModelPicker: (current: AIModel?) -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -153,6 +154,7 @@ private fun ChatScreenWired(
     }
 
     ChatContent(
+        onBack = onBack,
         title = viewModel.agentTitle?.takeIf { it.isNotBlank() },
         messages = uiState.messages,
         streaming = uiState.streaming,
@@ -199,9 +201,9 @@ private fun ChatContent(
     onAttachClick: () -> Unit = {},
     onRemoveFile: (UploadedFile) -> Unit = {},
     onRefresh: () -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val activity = context as? Activity
     val view = LocalView.current
     var showNewTopicDialog by remember { mutableStateOf(false) }
     var newTopicTitle by rememberSaveable { mutableStateOf("") }
@@ -224,7 +226,7 @@ private fun ChatContent(
         topBar = {
             AnTopBar(
                 title = barTitle,
-                onBack = { activity?.finish() },
+                onBack = onBack,
                 actions = {
                     IconButton(onClick = { showTopicHistory = true }) {
                         Icon(

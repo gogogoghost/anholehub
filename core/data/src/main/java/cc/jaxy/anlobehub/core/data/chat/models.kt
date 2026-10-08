@@ -30,12 +30,30 @@ data class ChatMessage(
 )
 
 @Serializable
+data class ModelAbilities(
+    val vision: Boolean = false,
+    val reasoning: Boolean = false,
+    val functionCall: Boolean = false,
+    val files: Boolean = false,
+    val audio: Boolean = false,
+    val video: Boolean = false,
+    val imageOutput: Boolean = false,
+    val search: Boolean = false,
+    val structuredOutput: Boolean = false,
+)
+
+@Serializable
 data class AIModel(
     val id: String = "",
     val displayName: String? = null,
     val providerId: String? = null,
     val providerName: String? = null,
     val enabled: Boolean? = null,
+    val type: String? = null,
+    val description: String? = null,
+    val contextWindowTokens: Int? = null,
+    val maxOutput: Int? = null,
+    val abilities: ModelAbilities = ModelAbilities(),
 )
 
 fun contentToText(element: JsonElement?): String {
@@ -154,7 +172,7 @@ fun JsonElement.asTopicList(): List<ChatTopic> {
 fun JsonElement.asAIModelList(): List<AIModel> {
     return try {
         val obj = this as? JsonObject ?: return emptyList()
-        // 形状1：{ providers: [{ id, models: [...] }] }
+        // Shape 1: { providers: [{ id, name?, models: [...] }] }
         (obj["providers"] as? JsonArray)?.let { providers ->
             val out = mutableListOf<AIModel>()
             for (p in providers) {
@@ -166,43 +184,65 @@ fun JsonElement.asAIModelList(): List<AIModel> {
                 val models = pObj["models"] as? JsonArray ?: continue
                 for (m in models) {
                     val mObj = m as? JsonObject ?: continue
-                    val id = mObj.stringOrNull("id")
-                        ?: mObj.stringOrNull("model")
-                        ?: continue
-                    out += AIModel(
-                        id = id,
-                        displayName = mObj.stringOrNull("displayName")
-                            ?: mObj.stringOrNull("display_name")
-                            ?: mObj.stringOrNull("name"),
-                        providerId = mObj.stringOrNull("providerId") ?: providerId,
-                        providerName = mObj.stringOrNull("providerName")
-                            ?: mObj.stringOrNull("provider")?.takeIf { it != mObj.stringOrNull("providerId") }
-                            ?: providerName,
-                        enabled = (mObj["enabled"] as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull(),
-                    )
+                    runCatching {
+                        mObj.toAIModel(
+                            fallbackProviderId = providerId,
+                            fallbackProviderName = providerName,
+                        )
+                    }.getOrNull()?.let { out += it }
                 }
             }
             if (out.isNotEmpty()) return out
         }
-        // 形状2：{ models: [...] }
+        // Shape 2: { models: [...] }
         (obj["models"] as? JsonArray)?.let { models ->
             return models.mapNotNull { m ->
                 val mObj = m as? JsonObject ?: return@mapNotNull null
-                val id = mObj.stringOrNull("id") ?: mObj.stringOrNull("model") ?: return@mapNotNull null
-                AIModel(
-                    id = id,
-                    displayName = mObj.stringOrNull("displayName")
-                        ?: mObj.stringOrNull("display_name")
-                        ?: mObj.stringOrNull("name"),
-                    providerId = mObj.stringOrNull("providerId"),
-                    providerName = mObj.stringOrNull("providerName")
-                        ?: mObj.stringOrNull("provider"),
-                    enabled = (mObj["enabled"] as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull(),
-                )
+                runCatching { mObj.toAIModel() }.getOrNull()
             }
         }
         emptyList()
     } catch (_: Exception) {
         emptyList()
     }
+}
+
+private fun JsonObject.toAIModel(
+    fallbackProviderId: String? = null,
+    fallbackProviderName: String? = null,
+): AIModel {
+    val id = stringOrNull("id") ?: stringOrNull("model")
+        ?: throw IllegalArgumentException("model without id")
+    val abilities = (this["abilities"] as? JsonObject)?.let { a ->
+        fun flag(key: String): Boolean =
+            (a[key] as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull() == true
+        ModelAbilities(
+            vision = flag("vision"),
+            reasoning = flag("reasoning"),
+            functionCall = flag("functionCall"),
+            files = flag("files"),
+            audio = flag("audio"),
+            video = flag("video"),
+            imageOutput = flag("imageOutput"),
+            search = flag("search"),
+            structuredOutput = flag("structuredOutput"),
+        )
+    } ?: ModelAbilities()
+    return AIModel(
+        id = id,
+        displayName = stringOrNull("displayName")
+            ?: stringOrNull("display_name")
+            ?: stringOrNull("name"),
+        providerId = stringOrNull("providerId") ?: fallbackProviderId,
+        providerName = stringOrNull("providerName")
+            ?: stringOrNull("provider")?.takeIf { it != stringOrNull("providerId") }
+            ?: fallbackProviderName,
+        enabled = (this["enabled"] as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull(),
+        type = stringOrNull("type"),
+        description = stringOrNull("description"),
+        contextWindowTokens = (this["contextWindowTokens"] as? JsonPrimitive)
+            ?.contentOrNull?.toIntOrNull(),
+        maxOutput = (this["maxOutput"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull(),
+        abilities = abilities,
+    )
 }
