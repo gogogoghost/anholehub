@@ -33,4 +33,20 @@
     <string name="agents_duplicating">Duplicating…</string>
     <string name="agents_delete_title">Delete agent</string>
     <string name="agents_delete_confirm_format">Delete \"%1$s\"? This cannot be undone.</string>
+
+    <string name="agents_edit_title">Edit agent</string>
+    <string name="agents_save">Save</string>
+    <string name="agents_delete">Delete</string>
+    <string name="agents_delete_message">This cannot be undone.</string>
+    <string name="agents_delete_confirm">Delete</string>
+    <string name="agents_edit_section_identity">Identity</string>
+    <string name="agents_edit_avatar_label">Avatar</string>
+    <string name="agents_edit_avatar_hint">Emoji or image URL</string>
+    <string name="agents_edit_description_label">Description</string>
+    <string name="agents_edit_section_model">Model</string>
+    <string name="agents_edit_section_prompt">System prompt</string>
+    <string name="agents_edit_section_opening">Opening</string>
+    <string name="agents_edit_opening_message_label">Opening message</string>
+    <string name="agents_edit_opening_question_label">Opening question %1$d</string>
+    <string name="agents_edit_add_question">Add question</string>
 </resources>

@@ -30,20 +30,12 @@ class AgentsViewModel @Inject constructor(
         val agents: List<Agent> = emptyList(),
         val models: List<AIModel> = emptyList(),
         val loading: Boolean = false,
-        val creating: Boolean = false,
         val operatingIds: Set<String> = emptySet(),
         val error: UiText? = null,
     )
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
-
-    private val _pendingModel = MutableStateFlow<AIModel?>(null)
-    val pendingModel: StateFlow<AIModel?> = _pendingModel.asStateFlow()
-
-    fun setCreateModel(model: AIModel?) {
-        _pendingModel.value = model
-    }
 
     init {
         refresh()
@@ -77,33 +69,6 @@ class AgentsViewModel @Inject constructor(
             when (val models = modelsDeferred.await()) {
                 is AnResult.Ok -> _uiState.value = _uiState.value.copy(models = models.value)
                 is AnResult.Err -> Unit
-            }
-        }
-    }
-
-    fun createAgent(title: String, systemRole: String?, model: String?, provider: String?) {
-        if (_uiState.value.creating) return
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(creating = true, error = null)
-            val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
-            if (baseUrl.isNullOrBlank()) {
-                _uiState.value = _uiState.value.copy(
-                    creating = false,
-                    error = UiText.Res(R.string.agents_no_server),
-                )
-                return@launch
-            }
-            when (val result = agentRepository.create(baseUrl, title, systemRole, model, provider)) {
-                is AnResult.Ok -> {
-                    _uiState.value = _uiState.value.copy(creating = false)
-                    _pendingModel.value = null
-                    refresh()
-                }
-                is AnResult.Err ->
-                    _uiState.value = _uiState.value.copy(
-                        creating = false,
-                        error = result.error.toUiText(),
-                    )
             }
         }
     }

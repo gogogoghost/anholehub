@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -38,12 +39,16 @@ data class Agent(
 
 @Serializable
 data class AgentConfig(
+    val title: String? = null,
+    val description: String? = null,
     val systemRole: String? = null,
     val model: String? = null,
     val provider: String? = null,
     val temperature: Double? = null,
     val avatar: String? = null,
     val backgroundColor: String? = null,
+    val openingMessage: String? = null,
+    val openingQuestions: List<String> = emptyList(),
 )
 
 private fun JsonObject.stringOrNull(key: String): String? =
@@ -104,6 +109,8 @@ fun JsonElement.toAgentConfig(): AgentConfig {
     val temperature = (obj["temperature"] as? JsonPrimitive)?.doubleOrNull
         ?: (params?.get("temperature") as? JsonPrimitive)?.doubleOrNull
     return AgentConfig(
+        title = obj.stringOrNull("title"),
+        description = obj.stringOrNull("description"),
         systemRole = obj.stringOrNull("systemRole"),
         model = obj.stringOrNull("model"),
         provider = obj.stringOrNull("provider"),
@@ -111,6 +118,10 @@ fun JsonElement.toAgentConfig(): AgentConfig {
         avatar = obj.stringOrNull("avatar"),
         backgroundColor = obj.stringOrNull("backgroundColor")
             ?: obj.stringOrNull("background"),
+        openingMessage = obj.stringOrNull("openingMessage"),
+        openingQuestions = (obj["openingQuestions"] as? JsonArray)
+            ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf { q -> q.isNotBlank() } }
+            .orEmpty(),
     )
 }
 
@@ -137,6 +148,10 @@ interface AgentRepository {
         systemRole: String? = null,
         model: String? = null,
         provider: String? = null,
+        description: String? = null,
+        avatar: String? = null,
+        openingMessage: String? = null,
+        openingQuestions: List<String> = emptyList(),
     ): AnResult<String>
 
     suspend fun updateConfig(
@@ -182,6 +197,10 @@ class AgentRepositoryImpl @Inject constructor(
         systemRole: String?,
         model: String?,
         provider: String?,
+        description: String?,
+        avatar: String?,
+        openingMessage: String?,
+        openingQuestions: List<String>,
     ): AnResult<String> {
         if (title.isBlank()) {
             return AnResult.Err(AnError(code = "INVALID_INPUT", message = "title is required"))
@@ -192,6 +211,13 @@ class AgentRepositoryImpl @Inject constructor(
                 if (!systemRole.isNullOrBlank()) put("systemRole", systemRole)
                 if (!model.isNullOrBlank()) put("model", model)
                 if (!provider.isNullOrBlank()) put("provider", provider)
+                if (!description.isNullOrBlank()) put("description", description)
+                if (!avatar.isNullOrBlank()) put("avatar", avatar)
+                if (!openingMessage.isNullOrBlank()) put("openingMessage", openingMessage)
+                val questions = openingQuestions.filter { it.isNotBlank() }
+                if (questions.isNotEmpty()) {
+                    put("openingQuestions", buildJsonArray { questions.forEach { add(JsonPrimitive(it)) } })
+                }
             }
         }
         return trpc.mutate(baseUrl, "agent.createAgent", input) { el ->

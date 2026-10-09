@@ -50,6 +50,9 @@ fun InitialAvatar(
     val trimmed = avatarUrl?.trim().orEmpty()
     // Agent avatar 常为 emoji（如 ✍️）：非 URL 短文本直接渲染，不走图片加载。
     val glyph = trimmed.takeIf { it.isNotEmpty() && !it.isImageUrl() }
+        // Keep the circle readable: a stray long string (not an emoji/URL)
+        // degrades to the name initial instead of overflowing.
+        ?.takeIf { it.codePointCount(0, it.length) <= 4 }
     // 首字：去空格取第一个字符，空名字用 ? 占位
     val initial = name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
     Box(

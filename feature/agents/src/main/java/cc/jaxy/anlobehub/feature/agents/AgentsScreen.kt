@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.SmartToy
@@ -64,13 +63,13 @@ fun AgentsScreen(
     onAgentClick: (String, String?) -> Unit,
     onSettingsClick: () -> Unit,
     onManageClick: (String) -> Unit,
-    onOpenModelPicker: () -> Unit,
+    onCreateClick: () -> Unit,
 ) {
     AgentsContent(
         onAgentClick = onAgentClick,
         onSettingsClick = onSettingsClick,
         onManageClick = onManageClick,
-        onOpenModelPicker = onOpenModelPicker,
+        onCreateClick = onCreateClick,
     )
 }
 
@@ -80,16 +79,13 @@ private fun AgentsContent(
     onAgentClick: (String, String?) -> Unit,
     onSettingsClick: () -> Unit,
     onManageClick: (String) -> Unit,
-    onOpenModelPicker: () -> Unit,
+    onCreateClick: () -> Unit,
     viewModel: AgentsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val pendingModel by viewModel.pendingModel.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var query by rememberSaveable { mutableStateOf("") }
-    var showCreate by rememberSaveable { mutableStateOf(false) }
-    var wasCreating by rememberSaveable { mutableStateOf(false) }
-    // Non-empty list errors are transient hints (create/duplicate failures); show once.
+    // Non-empty list errors are transient hints; show once.
     val errorText = uiState.error?.resolve()
     LaunchedEffect(errorText, uiState.agents.isEmpty()) {
         if (errorText != null && uiState.agents.isNotEmpty()) {
@@ -97,26 +93,13 @@ private fun AgentsContent(
             viewModel.dismissError()
         }
     }
-    // Close the create sheet once creation succeeds.
-    LaunchedEffect(uiState.creating) {
-        if (wasCreating && !uiState.creating && uiState.error == null) {
-            showCreate = false
-        }
-        wasCreating = uiState.creating
-    }
     Scaffold(
         topBar = {
             AnTopBar(
                 title = stringResource(R.string.agents_title),
                 onBack = null,
                 actions = {
-                    IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = stringResource(R.string.agents_refresh),
-                        )
-                    }
-                    IconButton(onClick = { showCreate = true }) {
+                    IconButton(onClick = onCreateClick) {
                         Icon(
                             imageVector = Icons.Filled.Add,
                             contentDescription = stringResource(R.string.agents_create),
@@ -141,24 +124,10 @@ private fun AgentsContent(
             query = query,
             onQueryChange = { query = it },
             onRefresh = { viewModel.refresh() },
-            onCreate = { showCreate = true },
+            onCreate = onCreateClick,
             onAgentClick = onAgentClick,
             onManageClick = onManageClick,
             modifier = Modifier.padding(padding),
-        )
-    }
-    if (showCreate) {
-        CreateAgentSheet(
-            creating = uiState.creating,
-            selectedModel = pendingModel,
-            onDismiss = {
-                if (!uiState.creating) showCreate = false
-            },
-            onConfirm = { title, systemRole, model, provider ->
-                viewModel.createAgent(title, systemRole, model, provider)
-            },
-            onOpenModelPicker = onOpenModelPicker,
-            onModelClear = { viewModel.setCreateModel(null) },
         )
     }
 }

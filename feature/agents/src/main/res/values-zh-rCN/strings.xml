@@ -32,4 +32,20 @@
     <string name="agents_duplicating">复制中…</string>
     <string name="agents_delete_title">删除智能体</string>
     <string name="agents_delete_confirm_format">确定删除「%1$s」吗？删除后不可恢复。</string>
+
+    <string name="agents_edit_title">编辑助手</string>
+    <string name="agents_save">保存</string>
+    <string name="agents_delete">删除</string>
+    <string name="agents_delete_message">删除后无法恢复。</string>
+    <string name="agents_delete_confirm">删除</string>
+    <string name="agents_edit_section_identity">基本信息</string>
+    <string name="agents_edit_avatar_label">头像</string>
+    <string name="agents_edit_avatar_hint">Emoji 或图片链接</string>
+    <string name="agents_edit_description_label">描述</string>
+    <string name="agents_edit_section_model">模型</string>
+    <string name="agents_edit_section_prompt">系统提示词</string>
+    <string name="agents_edit_section_opening">开场</string>
+    <string name="agents_edit_opening_message_label">开场白</string>
+    <string name="agents_edit_opening_question_label">开场问题 %1$d</string>
+    <string name="agents_edit_add_question">添加问题</string>
 </resources>

@@ -12,10 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -29,8 +26,8 @@ import cc.jaxy.anlobehub.core.common.model.formatPickedModel
 import cc.jaxy.anlobehub.core.common.model.parsePickedModel
 import cc.jaxy.anlobehub.core.data.chat.AIModel
 import cc.jaxy.anlobehub.core.designsystem.component.LoadingBox
-import cc.jaxy.anlobehub.feature.agents.AgentManageSheet
-import cc.jaxy.anlobehub.feature.agents.AgentManageViewModel
+import cc.jaxy.anlobehub.feature.agents.AgentEditScreen
+import cc.jaxy.anlobehub.feature.agents.AgentEditViewModel
 import cc.jaxy.anlobehub.feature.agents.AgentsScreen
 import cc.jaxy.anlobehub.feature.agents.AgentsViewModel
 import cc.jaxy.anlobehub.feature.auth.ServerScreen
@@ -54,6 +51,9 @@ data class LoginRoute(val baseUrl: String)
 
 @Serializable
 data object AgentsRoute
+
+@Serializable
+data class AgentEditRoute(val agentId: String? = null)
 
 @Serializable
 data class ChatRoute(
@@ -150,25 +150,14 @@ fun AnlobehubNavHost() {
         }
         composable<AgentsRoute> { entry ->
             val agentsViewModel: AgentsViewModel = hiltViewModel(entry)
-            val manageViewModel: AgentManageViewModel = hiltViewModel(entry)
-            var managingAgentId by rememberSaveable { mutableStateOf<String?>(null) }
-            var pickingForManage by rememberSaveable { mutableStateOf(false) }
-            val pickedRaw by entry.savedStateHandle.getStateFlow<String?>(PICKED_MODEL_KEY, null)
-                .collectAsStateWithLifecycle()
-            LaunchedEffect(pickedRaw) {
-                parsePickedModel(pickedRaw)?.let { picked ->
-                    val model = AIModel(
-                        id = picked.modelId,
-                        displayName = picked.displayName,
-                        providerId = picked.providerId,
-                    )
-                    if (pickingForManage) {
-                        manageViewModel.setModel(model)
-                    } else {
-                        agentsViewModel.setCreateModel(model)
-                    }
-                    pickingForManage = false
-                    entry.savedStateHandle[PICKED_MODEL_KEY] = null
+            // Refresh the list when returning from the editor.
+            val currentBackStack by navController.currentBackStackEntryFlow
+                .collectAsStateWithLifecycle(initialValue = null)
+            LaunchedEffect(currentBackStack) {
+                if (currentBackStack?.destination?.route
+                        ?.contains("AgentsRoute") == true
+                ) {
+                    agentsViewModel.refresh()
                 }
             }
             AgentsScreen(
@@ -176,26 +165,45 @@ fun AnlobehubNavHost() {
                     navController.navigate(ChatRoute(agentId = agentId, agentTitle = agentTitle))
                 },
                 onSettingsClick = { navController.navigate(SettingsRoute) },
-                onManageClick = { agentId -> managingAgentId = agentId },
-                onOpenModelPicker = { navController.navigate(ModelPickerRoute()) },
+                onManageClick = { agentId ->
+                    navController.navigate(AgentEditRoute(agentId = agentId))
+                },
+                onCreateClick = { navController.navigate(AgentEditRoute()) },
             )
-            managingAgentId?.let { agentId ->
-                AgentManageSheet(
-                    agentId = agentId,
-                    onDismiss = { managingAgentId = null },
-                    onDeleted = { managingAgentId = null },
-                    onOpenModelPicker = { current ->
-                        pickingForManage = true
-                        navController.navigate(
-                            ModelPickerRoute(
-                                selectedModelId = current?.id,
-                                selectedProviderId = current?.providerId,
-                            ),
-                        )
-                    },
-                    viewModel = manageViewModel,
-                )
+        }
+        composable<AgentEditRoute> { entry ->
+            val route = entry.toRoute<AgentEditRoute>()
+            val editViewModel: AgentEditViewModel = hiltViewModel(entry)
+            val pickedRaw by entry.savedStateHandle.getStateFlow<String?>(PICKED_MODEL_KEY, null)
+                .collectAsStateWithLifecycle()
+            LaunchedEffect(pickedRaw) {
+                parsePickedModel(pickedRaw)?.let { picked ->
+                    editViewModel.setModel(
+                        AIModel(
+                            id = picked.modelId,
+                            displayName = picked.displayName,
+                            providerId = picked.providerId,
+                        ),
+                    )
+                    entry.savedStateHandle[PICKED_MODEL_KEY] = null
+                }
             }
+            AgentEditScreen(
+                agentId = route.agentId,
+                onBack = { navController.popBackStack() },
+                onOpenModelPicker = { current ->
+                    navController.navigate(
+                        ModelPickerRoute(
+                            selectedModelId = current?.id,
+                            selectedProviderId = current?.providerId,
+                        ),
+                    )
+                },
+                onCreated = {
+                    navController.popBackStack()
+                },
+                viewModel = editViewModel,
+            )
         }
         composable<ChatRoute> { entry ->
             val chatViewModel: ChatViewModel = hiltViewModel(entry)
