@@ -57,4 +57,6 @@
     <string name="provider_detail_models">模型</string>
     <string name="provider_detail_models_desc">管理该供应商启用的模型</string>
     <string name="provider_detail_baseurl_default">默认：%1$s（留空使用）</string>
+    <string name="provider_detail_credentials_set">已配置</string>
+    <string name="provider_detail_credentials_unset">未配置</string>
 </resources>

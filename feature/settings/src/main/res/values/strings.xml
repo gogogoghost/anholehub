@@ -58,4 +58,6 @@
     <string name="provider_detail_models">Models</string>
     <string name="provider_detail_models_desc">Enable models for this provider</string>
     <string name="provider_detail_baseurl_default">Default: %1$s (blank to use)</string>
+    <string name="provider_detail_credentials_set">Configured</string>
+    <string name="provider_detail_credentials_unset">Not configured</string>
 </resources>

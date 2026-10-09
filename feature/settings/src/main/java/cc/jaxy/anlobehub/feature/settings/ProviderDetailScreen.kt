@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.SmartToy
@@ -36,6 +37,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -94,6 +96,8 @@ class ProviderDetailViewModel @Inject constructor(
         val detail: ProviderDetail? = null,
         val error: UiText? = null,
         val saving: Boolean = false,
+        val draftApiKey: String? = null,
+        val draftBaseURL: String? = null,
         val checking: Boolean = false,
         val checkResult: CheckResult? = null,
         val checkModelOverride: String? = null,
@@ -139,7 +143,17 @@ class ProviderDetailViewModel @Inject constructor(
         _event.value = null
     }
 
-    fun save(apiKey: String?, baseURL: String?) {
+    fun updateDraft(apiKey: String, baseURL: String) {
+        _uiState.value = _uiState.value.copy(draftApiKey = apiKey, draftBaseURL = baseURL)
+    }
+
+    /** Saves the draft (TopBar action on the credentials sub-page). */
+    fun saveFromDraft() {
+        val s = _uiState.value
+        save(s.draftApiKey, s.draftBaseURL)
+    }
+
+    private fun save(apiKey: String?, baseURL: String?) {
         viewModelScope.launch {
             val id = providerId
             val detail = _uiState.value.detail
@@ -161,7 +175,11 @@ class ProviderDetailViewModel @Inject constructor(
                 )
             ) {
                 is AnResult.Ok -> {
-                    _uiState.value = _uiState.value.copy(saving = false)
+                    _uiState.value = _uiState.value.copy(
+                        saving = false,
+                        draftApiKey = null,
+                        draftBaseURL = null,
+                    )
                     _event.value = UiText.Res(R.string.provider_detail_saved)
                     load()
                 }
@@ -203,21 +221,25 @@ class ProviderDetailViewModel @Inject constructor(
     }
 
 
-    fun fetchRemoteModels(apiKeyInput: String, baseURLInput: String) {
+    fun fetchRemoteModels() {
         viewModelScope.launch {
             val detail = _uiState.value.detail
-            val baseURL = baseURLInput.ifBlank { detail?.baseURL.orEmpty() }
+            val draftKey = _uiState.value.draftApiKey
+            val draftURL = _uiState.value.draftBaseURL
+            val baseURL = draftURL?.takeIf { it.isNotBlank() }
+                ?: detail?.baseURL?.takeIf { it.isNotBlank() }.orEmpty()
             if (baseURL.isBlank()) {
                 _event.value = UiText.Res(R.string.provider_detail_baseurl_required)
                 return@launch
             }
             // Masked/stored key is not reusable for direct calls: require explicit entry.
-            if (apiKeyInput.isBlank()) {
+            val apiKey = draftKey?.takeIf { it.isNotBlank() }.orEmpty()
+            if (apiKey.isBlank()) {
                 _event.value = UiText.Res(R.string.provider_detail_apikey_required)
                 return@launch
             }
             _uiState.value = _uiState.value.copy(fetching = true, remoteModels = null)
-            when (val result = providerRepository.fetchRemoteModels(baseURL, apiKeyInput)) {
+            when (val result = providerRepository.fetchRemoteModels(baseURL, apiKey)) {
                 is AnResult.Ok -> _uiState.value = _uiState.value.copy(
                     fetching = false,
                     remoteModels = result.value,
@@ -262,6 +284,7 @@ private fun ProviderDetailContent(
     val event by viewModel.event.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val message = event?.resolve()
+    var showCredentials by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(providerId) { viewModel.bind(providerId) }
     LaunchedEffect(message) {
         if (message != null) {
@@ -272,9 +295,27 @@ private fun ProviderDetailContent(
     Scaffold(
         topBar = {
             AnTopBar(
-                title = uiState.detail?.name?.takeIf { it.isNotBlank() }
-                    ?: uiState.detail?.id ?: providerId,
-                onBack = onBack,
+                title = if (showCredentials) {
+                    stringResource(R.string.provider_detail_section_credentials)
+                } else {
+                    uiState.detail?.name?.takeIf { it.isNotBlank() }
+                        ?: uiState.detail?.id ?: providerId
+                },
+                onBack = { if (showCredentials) showCredentials = false else onBack() },
+                actions = {
+                    if (showCredentials) {
+                        TextButton(
+                            onClick = { viewModel.saveFromDraft() },
+                            enabled = !uiState.saving,
+                        ) {
+                            if (uiState.saving) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text(stringResource(R.string.provider_detail_save))
+                            }
+                        }
+                    }
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
@@ -291,16 +332,19 @@ private fun ProviderDetailContent(
             uiState.detail != null ->
                 ProviderDetailBody(
                     detail = uiState.detail!!,
-                    saving = uiState.saving,
                     checking = uiState.checking,
                     checkResult = uiState.checkResult,
                     checkModelOverride = uiState.checkModelOverride,
                     fetching = uiState.fetching,
                     remoteModels = uiState.remoteModels,
                     fetchedCount = uiState.remoteModels?.size,
-                    onSave = { key, url -> viewModel.save(key, url) },
+                    showCredentials = showCredentials,
+                    draftApiKey = uiState.draftApiKey,
+                    draftBaseURL = uiState.draftBaseURL,
+                    onOpenCredentials = { showCredentials = true },
+                    onDraftChange = viewModel::updateDraft,
                     onCheck = { viewModel.check() },
-                    onFetch = { key, url -> viewModel.fetchRemoteModels(key, url) },
+                    onFetch = { viewModel.fetchRemoteModels() },
                     onPickCheckModel = onPickCheckModel,
                     modifier = Modifier.fillMaxSize().padding(padding),
                 )
@@ -311,16 +355,19 @@ private fun ProviderDetailContent(
 @Composable
 private fun ProviderDetailBody(
     detail: ProviderDetail,
-    saving: Boolean,
     checking: Boolean,
     checkResult: CheckResult?,
     checkModelOverride: String?,
     fetching: Boolean,
     remoteModels: List<String>?,
     fetchedCount: Int?,
-    onSave: (apiKey: String, baseURL: String) -> Unit,
+    showCredentials: Boolean,
+    draftApiKey: String?,
+    draftBaseURL: String?,
+    onOpenCredentials: () -> Unit,
+    onDraftChange: (apiKey: String, baseURL: String) -> Unit,
     onCheck: () -> Unit,
-    onFetch: (apiKey: String, baseURL: String) -> Unit,
+    onFetch: () -> Unit,
     onModelsClick: () -> Unit = {},
     onPickCheckModel: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -328,10 +375,11 @@ private fun ProviderDetailBody(
     val spacing = MaterialTheme.spacing
     val editable = isEditableProvider(detail.id, detail.source)
     val defaultURL = providerProxyUrl(detail.id)
-    var apiKey by rememberSaveable(detail.id) { mutableStateOf(detail.apiKey.orEmpty()) }
-    var baseURL by rememberSaveable(detail.id) { mutableStateOf(detail.baseURL.orEmpty()) }
+    val apiKey = draftApiKey ?: detail.apiKey.orEmpty()
+    val baseURL = draftBaseURL ?: detail.baseURL.orEmpty()
     val checkModel = checkModelOverride?.takeIf { it.isNotBlank() }
         ?: detail.checkModel?.takeIf { it.isNotBlank() }
+    if (!showCredentials) {
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(vertical = spacing.s),
@@ -362,60 +410,17 @@ private fun ProviderDetailBody(
             item(key = "credentials-title") {
                 SectionTitle(text = stringResource(R.string.provider_detail_section_credentials))
             }
-            item(key = "credentials-card") {
-                Card(modifier = Modifier.padding(horizontal = spacing.l)) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(spacing.l),
-                        verticalArrangement = Arrangement.spacedBy(spacing.m),
-                    ) {
-                        PasswordField(
-                            value = apiKey,
-                            onValueChange = { apiKey = it },
-                            label = stringResource(R.string.provider_detail_apikey),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        AnTextField(
-                            value = baseURL,
-                            onValueChange = { baseURL = it },
-                            label = stringResource(R.string.provider_detail_baseurl),
-                            modifier = Modifier.fillMaxWidth(),
-                            trailingIcon = {
-                                if (baseURL.isNotBlank()) {
-                                    IconButton(onClick = { baseURL = "" }) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Close,
-                                            contentDescription = stringResource(DsR.string.common_clear),
-                                        )
-                                    }
-                                }
-                            },
-                            supportingText = {
-                                Text(
-                                    defaultURL?.let {
-                                        stringResource(R.string.provider_detail_baseurl_default, it)
-                                    } ?: stringResource(R.string.provider_detail_baseurl_optional),
-                                )
-                            },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Uri,
-                                imeAction = ImeAction.Done,
-                            ),
-                        )
-                        FilledTonalButton(
-                            onClick = { onSave(apiKey, baseURL) },
-                            enabled = !saving,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            if (saving) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                            } else {
-                                Text(stringResource(R.string.provider_detail_save))
-                            }
-                        }
-                    }
-                }
+            item(key = "credentials-row") {
+                SettingRow(
+                    icon = Icons.Filled.Key,
+                    title = stringResource(R.string.provider_detail_section_credentials),
+                    subtitle = if (apiKey.isNotBlank() || baseURL.isNotBlank()) {
+                        stringResource(R.string.provider_detail_credentials_set)
+                    } else {
+                        stringResource(R.string.provider_detail_credentials_unset)
+                    },
+                    onClick = onOpenCredentials,
+                )
             }
             item(key = "connectivity-title") {
                 SectionTitle(text = stringResource(R.string.provider_detail_section_connectivity))
@@ -465,7 +470,7 @@ private fun ProviderDetailBody(
                             subtitle = fetchedCount?.let {
                                 stringResource(R.string.provider_detail_remote_count, it)
                             },
-                            onClick = { onFetch(apiKey, baseURL) },
+                            onClick = onFetch,
                             trailing = {
                                 if (fetching) {
                                     CircularProgressIndicator(modifier = Modifier.size(24.dp))
@@ -509,6 +514,66 @@ private fun ProviderDetailBody(
                 }
             }
         }
+        }
+    } else {
+        CredentialsForm(
+            apiKey = apiKey,
+            baseURL = baseURL,
+            defaultURL = defaultURL,
+            onDraftChange = onDraftChange,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun CredentialsForm(
+    apiKey: String,
+    baseURL: String,
+    defaultURL: String?,
+    onDraftChange: (apiKey: String, baseURL: String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val spacing = MaterialTheme.spacing
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(spacing.l),
+        verticalArrangement = Arrangement.spacedBy(spacing.m),
+    ) {
+        PasswordField(
+            value = apiKey,
+            onValueChange = { onDraftChange(it, baseURL) },
+            label = stringResource(R.string.provider_detail_apikey),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        AnTextField(
+            value = baseURL,
+            onValueChange = { onDraftChange(apiKey, it) },
+            label = stringResource(R.string.provider_detail_baseurl),
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                if (baseURL.isNotBlank()) {
+                    IconButton(onClick = { onDraftChange(apiKey, "") }) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(DsR.string.common_clear),
+                        )
+                    }
+                }
+            },
+            supportingText = {
+                Text(
+                    defaultURL?.let {
+                        stringResource(R.string.provider_detail_baseurl_default, it)
+                    } ?: stringResource(R.string.provider_detail_baseurl_optional),
+                )
+            },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Done,
+            ),
+        )
     }
 }
 
