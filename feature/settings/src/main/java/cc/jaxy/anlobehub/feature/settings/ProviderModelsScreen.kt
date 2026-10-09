@@ -44,7 +44,7 @@ import cc.jaxy.anlobehub.core.data.session.ServerStore
 import cc.jaxy.anlobehub.core.designsystem.component.AnTopBar
 import cc.jaxy.anlobehub.core.designsystem.component.EmptyBox
 import cc.jaxy.anlobehub.core.designsystem.component.ErrorBox
-import cc.jaxy.anlobehub.core.designsystem.component.ProviderIcon
+import cc.jaxy.anlobehub.core.designsystem.component.ModelIcon
 import cc.jaxy.anlobehub.core.designsystem.component.RefreshBox
 import cc.jaxy.anlobehub.core.designsystem.component.SkeletonList
 import cc.jaxy.anlobehub.core.designsystem.component.SearchField
@@ -289,7 +289,7 @@ private fun ProviderModelRow(
                 )
             },
             leadingContent = {
-                ProviderIcon(providerId = providerId, name = model.displayName?.takeIf { it.isNotBlank() } ?: model.id, size = 40.dp)
+                ModelIcon(modelId = model.id, providerId = providerId, label = model.displayName?.takeIf { it.isNotBlank() } ?: model.id, size = 40.dp)
             },
             trailingContent = {
                 Switch(

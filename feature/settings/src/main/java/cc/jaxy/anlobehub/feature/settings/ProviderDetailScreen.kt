@@ -405,6 +405,10 @@ private fun ProviderDetailContent(
                     onEnableResponseApiChange = viewModel::updateEnableResponseApi,
                     onCheck = { viewModel.check() },
                     onFetch = { viewModel.fetchRemoteModels() },
+                    onModelsClick = {
+                        val d = uiState.detail
+                        if (d != null) onModelsClick(d.id, d.name ?: providerName)
+                    },
                     onPickCheckModel = onPickCheckModel,
                     modifier = Modifier.fillMaxSize().padding(padding),
                 )
