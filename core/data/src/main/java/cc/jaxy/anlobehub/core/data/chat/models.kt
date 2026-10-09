@@ -173,7 +173,9 @@ fun JsonElement.asAIModelList(): List<AIModel> {
     return try {
         val obj = this as? JsonObject ?: return emptyList()
         // Shape 0 (real getAiProviderRuntimeState): flat enabledAiModels[] +
-        // enabledAiProviders[] id->name map.
+        // enabledAiProviders[] id->name map. NOTE: enabledAiModels contains
+        // models from ALL providers regardless of provider switches — only
+        // models whose providerId is in enabledAiProviders are usable.
         (obj["enabledAiModels"] as? JsonArray)?.let { models ->
             val providerNames = (obj["enabledAiProviders"] as? JsonArray)
                 ?.mapNotNull { p ->
@@ -183,10 +185,13 @@ fun JsonElement.asAIModelList(): List<AIModel> {
                 }?.toMap().orEmpty()
             val out = models.mapNotNull { m ->
                 val mObj = m as? JsonObject ?: return@mapNotNull null
+                val providerId = mObj.stringOrNull("providerId")
+                // Drop models from disabled providers (server returns all).
+                if (providerNames.isNotEmpty() && (providerId == null || providerId !in providerNames)) {
+                    return@mapNotNull null
+                }
                 runCatching {
-                    mObj.toAIModel(
-                        fallbackProviderName = providerNames[mObj.stringOrNull("providerId")],
-                    )
+                    mObj.toAIModel(fallbackProviderName = providerNames[providerId])
                 }.getOrNull()
             }
             if (out.isNotEmpty()) return out
