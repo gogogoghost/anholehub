@@ -67,6 +67,8 @@ dependencies {
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
     implementation(libs.hilt.android)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network)
     implementation(libs.markdown.m3)
     ksp(libs.hilt.compiler)
 

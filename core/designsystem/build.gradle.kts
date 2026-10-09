@@ -27,5 +27,6 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.coil.compose)
+    implementation(libs.coil.network)
     implementation(libs.markdown.m3)
 }

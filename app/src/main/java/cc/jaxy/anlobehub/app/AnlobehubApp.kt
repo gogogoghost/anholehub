@@ -5,6 +5,9 @@ import android.app.Application
 import android.os.Bundle
 import cc.jaxy.anlobehub.core.common.preferences.AppLanguage
 import cc.jaxy.anlobehub.core.data.preferences.UiPreferencesStore
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import dagger.hilt.android.HiltAndroidApp
 import java.lang.ref.WeakReference
 import javax.inject.Inject
@@ -14,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 
 @HiltAndroidApp
 class AnlobehubApp : Application() {
@@ -21,12 +25,21 @@ class AnlobehubApp : Application() {
     @Inject
     lateinit var uiPreferences: UiPreferencesStore
 
+    @Inject
+    lateinit var okHttpClient: OkHttpClient
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var foregroundActivity = WeakReference<Activity>(null)
     private var appliedTag: String? = null
 
     override fun onCreate() {
         super.onCreate()
+        // Coil3 needs an explicit network fetcher for http(s) images.
+        SingletonImageLoader.setSafe {
+            ImageLoader.Builder(this)
+                .components { add(OkHttpNetworkFetcherFactory(okHttpClient)) }
+                .build()
+        }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) {
                 foregroundActivity = WeakReference(activity)

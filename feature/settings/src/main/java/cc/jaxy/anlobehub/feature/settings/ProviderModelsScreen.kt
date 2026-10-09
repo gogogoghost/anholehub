@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,7 +44,7 @@ import cc.jaxy.anlobehub.core.data.session.ServerStore
 import cc.jaxy.anlobehub.core.designsystem.component.AnTopBar
 import cc.jaxy.anlobehub.core.designsystem.component.EmptyBox
 import cc.jaxy.anlobehub.core.designsystem.component.ErrorBox
-import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
+import cc.jaxy.anlobehub.core.designsystem.component.ProviderIcon
 import cc.jaxy.anlobehub.core.designsystem.component.RefreshBox
 import cc.jaxy.anlobehub.core.designsystem.component.SkeletonList
 import cc.jaxy.anlobehub.core.designsystem.component.SearchField
@@ -191,6 +192,7 @@ private fun ProviderModelsContent(
                 )
             else ->
                 ProviderModelsBody(
+                    providerId = providerId,
                     models = uiState.models,
                     refreshing = uiState.loading,
                     onRefresh = { viewModel.load() },
@@ -203,6 +205,7 @@ private fun ProviderModelsContent(
 
 @Composable
 private fun ProviderModelsBody(
+    providerId: String,
     models: List<AIModel>,
     refreshing: Boolean,
     onRefresh: () -> Unit,
@@ -248,6 +251,7 @@ private fun ProviderModelsBody(
                 ) {
                     items(filtered, key = { it.id }) { model ->
                         ProviderModelRow(
+                            providerId = providerId,
                             model = model,
                             onToggle = { onToggle(model, it) },
                         )
@@ -260,6 +264,7 @@ private fun ProviderModelsBody(
 
 @Composable
 private fun ProviderModelRow(
+    providerId: String,
     model: AIModel,
     onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -284,7 +289,7 @@ private fun ProviderModelRow(
                 )
             },
             leadingContent = {
-                InitialAvatar(name = model.displayName?.takeIf { it.isNotBlank() } ?: model.id)
+                ProviderIcon(providerId = providerId, name = model.displayName?.takeIf { it.isNotBlank() } ?: model.id, size = 40.dp)
             },
             trailingContent = {
                 Switch(
@@ -301,6 +306,7 @@ private fun ProviderModelRow(
 private fun ProviderModelsBodyPreview() {
     AnlobehubTheme(darkTheme = false) {
         ProviderModelsBody(
+            providerId = "openai",
             models = listOf(
                 AIModel(id = "gpt-4o", displayName = "GPT-4o", enabled = true),
                 AIModel(id = "o1-mini", displayName = "o1-mini", enabled = false),

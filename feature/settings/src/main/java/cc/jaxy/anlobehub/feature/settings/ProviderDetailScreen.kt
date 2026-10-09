@@ -74,7 +74,7 @@ import cc.jaxy.anlobehub.core.common.util.showClientFetchSwitch
 import cc.jaxy.anlobehub.core.common.util.specialFieldsFor
 import cc.jaxy.anlobehub.core.designsystem.component.AnTopBar
 import cc.jaxy.anlobehub.core.designsystem.component.ErrorBox
-import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
+import cc.jaxy.anlobehub.core.designsystem.component.ProviderIcon
 import cc.jaxy.anlobehub.core.designsystem.component.PasswordField
 import cc.jaxy.anlobehub.core.designsystem.component.SectionTitle
 import cc.jaxy.anlobehub.core.designsystem.component.SettingRow
@@ -466,7 +466,7 @@ private fun ProviderDetailBody(
                     headlineContent = { Text(detail.name?.takeIf { it.isNotBlank() } ?: detail.id) },
                     supportingContent = { Text(detail.id) },
                     leadingContent = {
-                        InitialAvatar(name = detail.name ?: detail.id, size = 40.dp)
+                        ProviderIcon(providerId = detail.id, name = detail.name ?: detail.id, logoUrl = detail.logo, size = 40.dp)
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 )

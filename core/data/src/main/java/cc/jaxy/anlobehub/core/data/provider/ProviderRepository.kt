@@ -32,6 +32,7 @@ import okhttp3.Request
 data class AiProvider(
     val id: String = "",
     val name: String? = null,
+    val logo: String? = null,
     val description: String? = null,
     val enabled: Boolean = true,
     val source: String? = null,
@@ -48,6 +49,7 @@ data class AiProvider(
 data class ProviderDetail(
     val id: String = "",
     val name: String? = null,
+    val logo: String? = null,
     val description: String? = null,
     val enabled: Boolean = true,
     val source: String? = null,
@@ -257,6 +259,7 @@ private fun JsonElement.toAiProvider(): AiProvider {
     return AiProvider(
         id = str("id") ?: "",
         name = str("name"),
+        logo = str("logo"),
         description = str("description"),
         enabled = (obj["enabled"] as? JsonPrimitive)?.contentOrNull
             ?.toBooleanStrictOrNull() ?: true,
@@ -276,6 +279,7 @@ private fun JsonElement.toProviderDetail(): ProviderDetail {
     return ProviderDetail(
         id = str("id") ?: "",
         name = str("name"),
+        logo = str("logo"),
         description = str("description"),
         enabled = (obj["enabled"] as? JsonPrimitive)?.contentOrNull
             ?.toBooleanStrictOrNull() ?: true,

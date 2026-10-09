@@ -38,7 +38,7 @@ private fun avatarColors(name: String?): Pair<Color, Color> {
     return presets[index]
 }
 
-// 通用头像：有 url 则加载圆形图片（加载中/失败透出底层首字回退），无则首字 + hash 配色
+// 通用头像：emoji/单字直显；http(s) URL 走 Coil（加载中/失败透出底层回退）；无则首字 + hash 配色
 @Composable
 fun InitialAvatar(
     name: String?,
@@ -47,6 +47,9 @@ fun InitialAvatar(
     modifier: Modifier = Modifier,
 ) {
     val (container, onContainer) = avatarColors(name)
+    val trimmed = avatarUrl?.trim().orEmpty()
+    // Agent avatar 常为 emoji（如 ✍️）：非 URL 短文本直接渲染，不走图片加载。
+    val glyph = trimmed.takeIf { it.isNotEmpty() && !it.isImageUrl() }
     // 首字：去空格取第一个字符，空名字用 ? 占位
     val initial = name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
     Box(
@@ -58,20 +61,31 @@ fun InitialAvatar(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = initial,
-            style = MaterialTheme.typography.titleMedium,
+            text = glyph ?: initial,
+            style = if (glyph != null) {
+                MaterialTheme.typography.headlineSmall
+            } else {
+                MaterialTheme.typography.titleMedium
+            },
             color = onContainer,
         )
-        if (!avatarUrl.isNullOrBlank()) {
+        if (glyph == null && trimmed.isImageUrl()) {
             // 圆形裁剪 + 裁剪填充；占位/失败时 AsyncImage 无内容，透出底层首字即回退
             AsyncImage(
-                model = avatarUrl,
+                model = trimmed,
                 contentDescription = null,
                 modifier = Modifier.matchParentSize().clip(CircleShape),
                 contentScale = ContentScale.Crop,
             )
         }
     }
+}
+
+private fun String.isImageUrl(): Boolean {
+    val lower = lowercase()
+    return lower.startsWith("http://") || lower.startsWith("https://") ||
+        lower.startsWith("file://") || lower.startsWith("content://") ||
+        lower.startsWith("android.resource://")
 }
 
 // 小胶囊：模型名等短标签展示

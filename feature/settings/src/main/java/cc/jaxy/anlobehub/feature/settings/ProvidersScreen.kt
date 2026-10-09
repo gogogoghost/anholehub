@@ -44,7 +44,7 @@ import cc.jaxy.anlobehub.core.data.session.ServerStore
 import cc.jaxy.anlobehub.core.designsystem.component.AnTopBar
 import cc.jaxy.anlobehub.core.designsystem.component.EmptyBox
 import cc.jaxy.anlobehub.core.designsystem.component.ErrorBox
-import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
+import cc.jaxy.anlobehub.core.designsystem.component.ProviderIcon
 import cc.jaxy.anlobehub.core.designsystem.component.RefreshBox
 import cc.jaxy.anlobehub.core.designsystem.component.SkeletonList
 import cc.jaxy.anlobehub.core.designsystem.component.SearchField
@@ -277,7 +277,7 @@ private fun ProviderRow(
                 )
             },
             leadingContent = {
-                InitialAvatar(name = provider.name?.takeIf { it.isNotBlank() } ?: provider.id)
+                ProviderIcon(providerId = provider.id, name = provider.name?.takeIf { it.isNotBlank() } ?: provider.id, logoUrl = provider.logo)
             },
             trailingContent = {
                 androidx.compose.foundation.layout.Row(
