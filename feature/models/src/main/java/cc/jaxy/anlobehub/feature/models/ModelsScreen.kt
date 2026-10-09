@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ChevronRight
@@ -42,7 +43,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -351,6 +351,11 @@ private fun ModelRow(
                 model.displayName?.takeIf { it.isNotBlank() } ?: model.id,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
             )
         },
         supportingContent = {
@@ -383,12 +388,18 @@ private fun ModelRow(
                 }
             }
         },
-        leadingContent = {
-            RadioButton(selected = selected, onClick = { onPick(model) })
-        },
         trailingContent = {
-            IconButton(onClick = { onShowDetail(model) }) {
-                Icon(imageVector = Icons.Filled.Info, contentDescription = stringResource(R.string.models_detail))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selected) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                IconButton(onClick = { onShowDetail(model) }) {
+                    Icon(imageVector = Icons.Filled.Info, contentDescription = stringResource(R.string.models_detail))
+                }
             }
         },
         modifier = modifier.combinedClickable(
