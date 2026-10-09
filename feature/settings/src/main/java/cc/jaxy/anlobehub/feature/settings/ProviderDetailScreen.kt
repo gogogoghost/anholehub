@@ -1,6 +1,7 @@
 package cc.jaxy.anlobehub.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.Button
@@ -19,6 +22,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,6 +63,7 @@ import cc.jaxy.anlobehub.core.designsystem.component.PasswordField
 import cc.jaxy.anlobehub.core.designsystem.component.SectionTitle
 import cc.jaxy.anlobehub.core.designsystem.component.SettingRow
 import cc.jaxy.anlobehub.core.designsystem.component.SkeletonList
+import cc.jaxy.anlobehub.core.designsystem.R as DsR
 import cc.jaxy.anlobehub.core.designsystem.text.UiText
 import cc.jaxy.anlobehub.core.designsystem.text.resolve
 import cc.jaxy.anlobehub.core.designsystem.text.toUiText
@@ -72,7 +77,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-internal class ProviderDetailViewModel @Inject constructor(
+class ProviderDetailViewModel @Inject constructor(
     private val serverStore: ServerStore,
     private val providerRepository: ProviderRepository,
 ) : ViewModel() {
@@ -84,6 +89,7 @@ internal class ProviderDetailViewModel @Inject constructor(
         val saving: Boolean = false,
         val checking: Boolean = false,
         val checkResult: CheckResult? = null,
+        val checkModelOverride: String? = null,
         val fetching: Boolean = false,
         val remoteModels: List<String>? = null,
     )
@@ -169,7 +175,10 @@ internal class ProviderDetailViewModel @Inject constructor(
                 return@launch
             }
             _uiState.value = _uiState.value.copy(checking = true, checkResult = null)
-            when (val result = providerRepository.checkConnectivity(baseUrl, id)) {
+            val model = _uiState.value.checkModelOverride
+                ?.takeIf { it.isNotBlank() }
+                ?: _uiState.value.detail?.checkModel?.takeIf { it.isNotBlank() }
+            when (val result = providerRepository.checkConnectivity(baseUrl, id, model)) {
                 is AnResult.Ok -> _uiState.value = _uiState.value.copy(
                     checking = false,
                     checkResult = result.value,
@@ -181,6 +190,11 @@ internal class ProviderDetailViewModel @Inject constructor(
             }
         }
     }
+
+    fun setCheckModel(modelId: String) {
+        _uiState.value = _uiState.value.copy(checkModelOverride = modelId, checkResult = null)
+    }
+
 
     fun fetchRemoteModels(apiKeyInput: String, baseURLInput: String) {
         viewModelScope.launch {
@@ -216,8 +230,16 @@ fun ProviderDetailScreen(
     providerId: String,
     onBack: () -> Unit,
     onModelsClick: (providerId: String, providerName: String?) -> Unit = { _, _ -> },
+    onPickCheckModel: () -> Unit = {},
+    viewModel: ProviderDetailViewModel = hiltViewModel(),
 ) {
-    ProviderDetailContent(providerId = providerId, onBack = onBack, onModelsClick = onModelsClick)
+    ProviderDetailContent(
+        providerId = providerId,
+        onBack = onBack,
+        onModelsClick = onModelsClick,
+        onPickCheckModel = onPickCheckModel,
+        viewModel = viewModel,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -226,6 +248,7 @@ private fun ProviderDetailContent(
     providerId: String,
     onBack: () -> Unit,
     onModelsClick: (providerId: String, providerName: String?) -> Unit = { _, _ -> },
+    onPickCheckModel: () -> Unit = {},
     viewModel: ProviderDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -264,17 +287,13 @@ private fun ProviderDetailContent(
                     saving = uiState.saving,
                     checking = uiState.checking,
                     checkResult = uiState.checkResult,
+                    checkModelOverride = uiState.checkModelOverride,
                     fetching = uiState.fetching,
                     remoteModels = uiState.remoteModels,
                     onSave = { key, url -> viewModel.save(key, url) },
                     onCheck = { viewModel.check() },
                     onFetch = { key, url -> viewModel.fetchRemoteModels(key, url) },
-                    onModelsClick = {
-                        onModelsClick(
-                            uiState.detail!!.id,
-                            uiState.detail!!.name?.takeIf { it.isNotBlank() },
-                        )
-                    },
+                    onPickCheckModel = onPickCheckModel,
                     modifier = Modifier.fillMaxSize().padding(padding),
                 )
         }
@@ -287,12 +306,14 @@ private fun ProviderDetailBody(
     saving: Boolean,
     checking: Boolean,
     checkResult: CheckResult?,
+    checkModelOverride: String?,
     fetching: Boolean,
     remoteModels: List<String>?,
     onSave: (apiKey: String, baseURL: String) -> Unit,
     onCheck: () -> Unit,
     onFetch: (apiKey: String, baseURL: String) -> Unit,
     onModelsClick: () -> Unit = {},
+    onPickCheckModel: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val spacing = MaterialTheme.spacing
@@ -372,6 +393,16 @@ private fun ProviderDetailBody(
                         onValueChange = { baseURL = it },
                         label = stringResource(R.string.provider_detail_baseurl),
                         modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            if (baseURL.isNotBlank()) {
+                                IconButton(onClick = { baseURL = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = stringResource(DsR.string.common_clear),
+                                    )
+                                }
+                            }
+                        },
                         supportingText = {
                             Text(
                                 defaultURL?.let {
@@ -413,10 +444,18 @@ private fun ProviderDetailBody(
                         headlineContent = { Text(stringResource(R.string.provider_detail_check_model)) },
                         supportingContent = {
                             Text(
-                                detail.checkModel?.takeIf { it.isNotBlank() }
+                                checkModelOverride?.takeIf { it.isNotBlank() }
+                                    ?: detail.checkModel?.takeIf { it.isNotBlank() }
                                     ?: stringResource(R.string.provider_detail_no_check_model),
                             )
                         },
+                        trailingContent = {
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                            )
+                        },
+                        modifier = Modifier.clickable(onClick = onPickCheckModel),
                     )
                     FilledTonalButton(
                         onClick = onCheck,

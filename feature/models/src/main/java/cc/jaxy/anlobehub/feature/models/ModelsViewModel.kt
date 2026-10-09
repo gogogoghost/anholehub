@@ -27,6 +27,7 @@ class ModelsViewModel @Inject constructor(
 
     val selectedModelId: String? = savedStateHandle.get<String>("selectedModelId")?.takeIf { it.isNotBlank() }
     val selectedProviderId: String? = savedStateHandle.get<String>("selectedProviderId")?.takeIf { it.isNotBlank() }
+    private val filterProviderId: String? = savedStateHandle.get<String>("filterProviderId")?.takeIf { it.isNotBlank() }
 
     data class UiState(
         val models: List<AIModel> = emptyList(),
@@ -52,7 +53,11 @@ class ModelsViewModel @Inject constructor(
                 )
                 return@launch
             }
-            when (val result = modelRepository.listModels(baseUrl)) {
+            // Provider-scoped (e.g. check model): full model list of that
+            // provider, including disabled ones. Otherwise the enabled-only
+            // global list.
+            val scoped = filterProviderId
+            when (val result = if (scoped != null) modelRepository.listProviderModels(baseUrl, scoped) else modelRepository.listModels(baseUrl)) {
                 is AnResult.Ok -> _uiState.value = _uiState.value.copy(
                     loading = false,
                     models = result.value,

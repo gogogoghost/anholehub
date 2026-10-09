@@ -39,6 +39,7 @@ import cc.jaxy.anlobehub.feature.chat.ChatViewModel
 import cc.jaxy.anlobehub.feature.models.ModelsScreen
 import cc.jaxy.anlobehub.feature.settings.KnowledgeBasesScreen
 import cc.jaxy.anlobehub.feature.settings.ProviderDetailScreen
+import cc.jaxy.anlobehub.feature.settings.ProviderDetailViewModel
 import cc.jaxy.anlobehub.feature.settings.ProviderModelsScreen
 import cc.jaxy.anlobehub.feature.settings.ProvidersScreen
 import cc.jaxy.anlobehub.feature.settings.SettingsScreen
@@ -84,6 +85,7 @@ data class ProviderDetailRoute(val providerId: String)
 data class ModelPickerRoute(
     val selectedModelId: String? = null,
     val selectedProviderId: String? = null,
+    val filterProviderId: String? = null,
 )
 
 @Composable
@@ -268,12 +270,30 @@ fun AnlobehubNavHost() {
         }
         composable<ProviderDetailRoute> { entry ->
             val route = entry.toRoute<ProviderDetailRoute>()
+            val detailViewModel: ProviderDetailViewModel = hiltViewModel(entry)
+            val pickedRaw by entry.savedStateHandle.getStateFlow<String?>(PICKED_MODEL_KEY, null)
+                .collectAsStateWithLifecycle()
+            LaunchedEffect(pickedRaw) {
+                // Only consume picks aimed at this screen (provider-scoped).
+                parsePickedModel(pickedRaw)?.let { picked ->
+                    if (picked.providerId == route.providerId) {
+                        detailViewModel.setCheckModel(picked.modelId)
+                        entry.savedStateHandle[PICKED_MODEL_KEY] = null
+                    }
+                }
+            }
             ProviderDetailScreen(
                 providerId = route.providerId,
                 onBack = { navController.popBackStack() },
                 onModelsClick = { id, name ->
                     navController.navigate(ProviderModelsRoute(providerId = id, providerName = name))
                 },
+                onPickCheckModel = {
+                    navController.navigate(
+                        ModelPickerRoute(filterProviderId = route.providerId),
+                    )
+                },
+                viewModel = detailViewModel,
             )
         }
         composable<ProviderModelsRoute> { entry ->
@@ -289,6 +309,7 @@ fun AnlobehubNavHost() {
             ModelsScreen(
                 selectedModelId = route.selectedModelId,
                 selectedProviderId = route.selectedProviderId,
+                filterProviderId = route.filterProviderId,
                 onPick = { model ->
                     navController.previousBackStackEntry?.savedStateHandle?.set(
                         PICKED_MODEL_KEY,

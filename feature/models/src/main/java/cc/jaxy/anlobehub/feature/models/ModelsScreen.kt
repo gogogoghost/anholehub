@@ -87,6 +87,7 @@ import cc.jaxy.anlobehub.core.designsystem.theme.spacing
 fun ModelsScreen(
     selectedModelId: String? = null,
     selectedProviderId: String? = null,
+    filterProviderId: String? = null,
     onPick: (AIModel) -> Unit,
     onBack: () -> Unit,
     viewModel: ModelsViewModel = hiltViewModel(),
@@ -96,8 +97,12 @@ fun ModelsScreen(
     val reasoningUi by viewModel.reasoningUi.collectAsStateWithLifecycle()
     var detailKey by rememberSaveable { mutableStateOf<String?>(null) }
     val detail = detailKey?.let { key -> uiState.models.find { reasoningKeyOf(it) == key } }
+    val scoped = remember(uiState.models, filterProviderId) {
+        if (filterProviderId.isNullOrBlank()) uiState.models
+        else uiState.models.filter { it.providerId == filterProviderId }
+    }
     return ModelsContent(
-        models = uiState.models,
+        models = scoped,
         loading = uiState.loading,
         error = uiState.error,
         selectedModelId = selectedModelId ?: viewModel.selectedModelId,
