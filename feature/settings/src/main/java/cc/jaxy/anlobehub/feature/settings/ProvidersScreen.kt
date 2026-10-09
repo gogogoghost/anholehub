@@ -1,5 +1,6 @@
 package cc.jaxy.anlobehub.feature.settings
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -7,6 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
@@ -15,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -24,6 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +49,7 @@ import cc.jaxy.anlobehub.core.designsystem.component.ErrorBox
 import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
 import cc.jaxy.anlobehub.core.designsystem.component.RefreshBox
 import cc.jaxy.anlobehub.core.designsystem.component.SkeletonList
+import cc.jaxy.anlobehub.core.designsystem.R as DsR
 import cc.jaxy.anlobehub.core.designsystem.text.UiText
 import cc.jaxy.anlobehub.core.designsystem.text.resolve
 import cc.jaxy.anlobehub.core.designsystem.text.toUiText
@@ -190,23 +198,60 @@ private fun ProvidersBody(
     modifier: Modifier = Modifier,
 ) {
     val spacing = MaterialTheme.spacing
-    RefreshBox(
-        refreshing = refreshing,
-        onRefresh = onRefresh,
-        modifier = modifier,
-    ) {
-        if (providers.isEmpty()) {
-            EmptyBox(
-                icon = Icons.Filled.Cloud,
-                title = stringResource(R.string.providers_empty_title),
-                description = stringResource(R.string.discovery_empty_desc),
-            )
-        } else {
+    var query by rememberSaveable { mutableStateOf("") }
+    val filtered = remember(providers, query) {
+        if (query.isBlank()) providers
+        else providers.filter {
+            it.id.contains(query, ignoreCase = true) ||
+                (it.name?.contains(query, ignoreCase = true) == true)
+        }
+    }
+    Column(modifier = modifier) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = spacing.l, vertical = spacing.s),
+            placeholder = { Text(stringResource(R.string.providers_search_hint)) },
+            leadingIcon = {
+                Icon(imageVector = Icons.Filled.Search, contentDescription = null)
+            },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { query = "" }) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(DsR.string.common_clear),
+                        )
+                    }
+                }
+            },
+            singleLine = true,
+        )
+        RefreshBox(
+            refreshing = refreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            if (providers.isEmpty()) {
+                EmptyBox(
+                    icon = Icons.Filled.Cloud,
+                    title = stringResource(R.string.providers_empty_title),
+                    description = stringResource(R.string.discovery_empty_desc),
+                )
+            } else if (filtered.isEmpty()) {
+                EmptyBox(
+                    icon = Icons.Filled.Search,
+                    title = stringResource(R.string.providers_search_empty),
+                    description = query,
+                )
+            } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(spacing.l),
             ) {
-                items(providers, key = { it.id }) { provider ->
+                items(filtered, key = { it.id }) { provider ->
                     ProviderRow(
                         provider = provider,
                         onClick = {
@@ -216,6 +261,7 @@ private fun ProvidersBody(
                         onToggle = { onToggle(provider, it) },
                     )
                 }
+            }
             }
         }
     }

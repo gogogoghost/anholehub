@@ -144,4 +144,8 @@
     <string name="provider_cfg_ollama_endpoint_desc">Must include http(s)://. Leave blank for local defaults.</string>
     <string name="provider_cfg_newapi_endpoint_title">API Address</string>
     <string name="provider_cfg_newapi_endpoint_desc">New API service address; usually without /v1.</string>
+    <string name="providers_search_hint">Search providers</string>
+    <string name="providers_search_empty">No matching providers</string>
+    <string name="provider_models_search_hint">Search models</string>
+    <string name="provider_models_search_empty">No matching models</string>
 </resources>
