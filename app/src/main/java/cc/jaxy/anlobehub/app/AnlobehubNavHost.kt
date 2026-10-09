@@ -5,8 +5,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,6 +85,12 @@ data class ModelPickerRoute(
 @Composable
 fun AnlobehubNavHost() {
     val navController = rememberNavController()
+    // Themed backdrop: prevents white flash behind slide/fade transitions.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
     NavHost(
         navController = navController,
         startDestination = StartupRoute,
@@ -274,5 +282,6 @@ fun AnlobehubNavHost() {
                 onBack = { navController.popBackStack() },
             )
         }
+    }
     }
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Must match Compose DarkColors.background/surface -->
+    <color name="splash_background">#0F172A</color>
+    <color name="window_background">#0F172A</color>
+</resources>
