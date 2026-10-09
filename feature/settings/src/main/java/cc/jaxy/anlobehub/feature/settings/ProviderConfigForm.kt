@@ -60,6 +60,7 @@ import cc.jaxy.anlobehub.core.designsystem.R as DsR
 @Composable
 fun ProviderConfigForm(
     detail: ProviderDetail,
+    displayName: String,
     vaultValue: (String) -> String,
     draftAuthMode: String?,
     draftFetchOnClient: Boolean?,
@@ -141,7 +142,7 @@ fun ProviderConfigForm(
                         Text(
                             stringResource(
                                 R.string.provider_cfg_apikey_desc,
-                                detail.name?.takeIf { it.isNotBlank() } ?: detail.id,
+                                displayName,
                             ),
                         )
                     },

@@ -352,7 +352,12 @@ private fun ProviderDetailContent(
                 },
                 onBack = { if (showCredentials) showCredentials = false else onBack() },
                 actions = {
-                    if (showCredentials) {
+                    val detail = uiState.detail
+                    val spec = detail?.let {
+                        providerConfigSpec(it.id, it.source)
+                    }
+                    val editable = spec != null && spec.showConfig && !spec.isOAuth
+                    if (showCredentials && editable) {
                         TextButton(
                             onClick = { viewModel.saveFromDraft() },
                             enabled = !uiState.saving,
@@ -381,6 +386,7 @@ private fun ProviderDetailContent(
             uiState.detail != null ->
                 ProviderDetailBody(
                     detail = uiState.detail!!,
+                    providerName = providerName,
                     checking = uiState.checking,
                     checkResult = uiState.checkResult,
                     checkModelOverride = uiState.checkModelOverride,
@@ -409,6 +415,7 @@ private fun ProviderDetailContent(
 @Composable
 private fun ProviderDetailBody(
     detail: ProviderDetail,
+    providerName: String? = null,
     checking: Boolean,
     checkResult: CheckResult?,
     checkModelOverride: String?,
@@ -584,6 +591,9 @@ private fun ProviderDetailBody(
     } else {
         ProviderConfigForm(
             detail = detail,
+            displayName = detail.name?.takeIf { it.isNotBlank() }
+                ?: providerName?.takeIf { it.isNotBlank() }
+                ?: detail.id,
             vaultValue = ::vaultValue,
             draftAuthMode = draftAuthMode,
             draftFetchOnClient = draftFetchOnClient,
