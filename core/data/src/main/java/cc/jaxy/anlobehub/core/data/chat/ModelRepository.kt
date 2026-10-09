@@ -31,6 +31,18 @@ data class ReasoningConfig(
 interface ModelRepository {
     suspend fun listModels(baseUrl: String): AnResult<List<AIModel>>
 
+    suspend fun listProviderModels(
+        baseUrl: String,
+        providerId: String,
+    ): AnResult<List<AIModel>>
+
+    suspend fun toggleModel(
+        baseUrl: String,
+        modelId: String,
+        providerId: String,
+        enabled: Boolean,
+    ): AnResult<Unit>
+
     suspend fun getReasoningConfig(
         baseUrl: String,
         modelId: String,
@@ -53,6 +65,29 @@ class ModelRepositoryImpl @Inject constructor(
     override suspend fun listModels(baseUrl: String): AnResult<List<AIModel>> {
         val input = buildJsonObject { put("isLogin", true) }
         return trpc.query(baseUrl, "aiProvider.getAiProviderRuntimeState", input) { it.asAIModelList() }
+    }
+    override suspend fun listProviderModels(
+        baseUrl: String,
+        providerId: String,
+    ): AnResult<List<AIModel>> {
+        val input = buildJsonObject { put("id", providerId) }
+        return trpc.query(baseUrl, "aiModel.getAiProviderModelList", input) { el ->
+            el.asAIModelListWithFallback(providerId)
+        }
+    }
+
+    override suspend fun toggleModel(
+        baseUrl: String,
+        modelId: String,
+        providerId: String,
+        enabled: Boolean,
+    ): AnResult<Unit> {
+        val input = buildJsonObject {
+            put("id", modelId)
+            put("providerId", providerId)
+            put("enabled", enabled)
+        }
+        return trpc.mutate(baseUrl, "aiModel.toggleModelEnabled", input) { }
     }
 
     override suspend fun getReasoningConfig(

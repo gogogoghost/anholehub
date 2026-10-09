@@ -36,6 +36,8 @@ import cc.jaxy.anlobehub.feature.chat.ChatScreen
 import cc.jaxy.anlobehub.feature.chat.ChatViewModel
 import cc.jaxy.anlobehub.feature.models.ModelsScreen
 import cc.jaxy.anlobehub.feature.settings.KnowledgeBasesScreen
+import cc.jaxy.anlobehub.feature.settings.ProviderModelsScreen
+import cc.jaxy.anlobehub.feature.settings.ProvidersScreen
 import cc.jaxy.anlobehub.feature.settings.SettingsScreen
 import cc.jaxy.anlobehub.feature.settings.SettingsViewModel
 import kotlinx.serialization.Serializable
@@ -64,6 +66,12 @@ data object SettingsRoute
 
 @Serializable
 data object KnowledgeBasesRoute
+
+@Serializable
+data object ProvidersRoute
+
+@Serializable
+data class ProviderModelsRoute(val providerId: String, val providerName: String? = null)
 
 
 @Serializable
@@ -229,10 +237,27 @@ fun AnlobehubNavHost() {
             }
             SettingsScreen(
                 onKnowledgeBasesClick = { navController.navigate(KnowledgeBasesRoute) },
+                onProvidersClick = { navController.navigate(ProvidersRoute) },
             )
         }
         composable<KnowledgeBasesRoute> {
             KnowledgeBasesScreen(onBack = { navController.popBackStack() })
+        }
+        composable<ProvidersRoute> {
+            ProvidersScreen(
+                onBack = { navController.popBackStack() },
+                onProviderClick = { id, name ->
+                    navController.navigate(ProviderModelsRoute(providerId = id, providerName = name))
+                },
+            )
+        }
+        composable<ProviderModelsRoute> { entry ->
+            val route = entry.toRoute<ProviderModelsRoute>()
+            ProviderModelsScreen(
+                providerId = route.providerId,
+                providerName = route.providerName,
+                onBack = { navController.popBackStack() },
+            )
         }
         composable<ModelPickerRoute> { entry ->
             val route = entry.toRoute<ModelPickerRoute>()

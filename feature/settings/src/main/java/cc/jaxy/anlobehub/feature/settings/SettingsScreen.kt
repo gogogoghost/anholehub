@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
@@ -76,9 +77,11 @@ private const val APP_VERSION = "0.1.0"
 @Composable
 fun SettingsScreen(
     onKnowledgeBasesClick: () -> Unit = {},
+    onProvidersClick: () -> Unit = {},
 ) {
     SettingsContent(
         onKnowledgeBasesClick = onKnowledgeBasesClick,
+        onProvidersClick = onProvidersClick,
     )
 }
 
@@ -87,6 +90,7 @@ fun SettingsScreen(
 private fun SettingsContent(
     viewModel: SettingsViewModel = hiltViewModel(),
     onKnowledgeBasesClick: () -> Unit = {},
+    onProvidersClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -113,7 +117,8 @@ private fun SettingsContent(
                     profileError = if (uiState.profile == null) uiState.error else null,
                     onRetry = { viewModel.load() },
                     onKnowledgeBasesClick = onKnowledgeBasesClick,
-                                onSignOutClick = { showSignOutDialog = true },
+                    onProvidersClick = onProvidersClick,
+                    onSignOutClick = { showSignOutDialog = true },
                     onSwitchServerClick = { showSwitchDialog = true },
                     theme = theme,
                     language = language,
@@ -166,6 +171,7 @@ private fun SettingsBody(
     profileError: UiText?,
     onRetry: () -> Unit,
     onKnowledgeBasesClick: () -> Unit,
+    onProvidersClick: () -> Unit,
     onSignOutClick: () -> Unit,
     onSwitchServerClick: () -> Unit,
     theme: AppTheme,
@@ -225,6 +231,13 @@ private fun SettingsBody(
         item(key = "content-card") {
             Card(modifier = Modifier.padding(horizontal = spacing.l)) {
                 Column {
+                    SettingRow(
+                        icon = Icons.Filled.Cloud,
+                        title = stringResource(R.string.providers_title),
+                        subtitle = stringResource(R.string.browse),
+                        onClick = onProvidersClick,
+                    )
+                    HorizontalDivider()
                     SettingRow(
                         icon = Icons.Filled.Folder,
                         title = stringResource(R.string.kb_title),
@@ -383,6 +396,7 @@ private fun SettingsBodyLightPreview() {
             onLanguageChange = {},
             onRetry = {},
             onKnowledgeBasesClick = {},
+            onProvidersClick = {},
             onSignOutClick = {},
             onSwitchServerClick = {},
         )
@@ -403,6 +417,7 @@ private fun SettingsBodyDarkPreview() {
             onLanguageChange = {},
             onRetry = {},
             onKnowledgeBasesClick = {},
+            onProvidersClick = {},
             onSignOutClick = {},
             onSwitchServerClick = {},
         )

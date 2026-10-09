@@ -6,6 +6,8 @@ import cc.jaxy.anlobehub.core.data.chat.MessageRepository
 import cc.jaxy.anlobehub.core.data.chat.MessageRepositoryImpl
 import cc.jaxy.anlobehub.core.data.chat.ModelRepository
 import cc.jaxy.anlobehub.core.data.chat.ModelRepositoryImpl
+import cc.jaxy.anlobehub.core.data.provider.ProviderRepository
+import cc.jaxy.anlobehub.core.data.provider.ProviderRepositoryImpl
 import cc.jaxy.anlobehub.core.data.chat.TopicRepository
 import cc.jaxy.anlobehub.core.data.chat.TopicRepositoryImpl
 import cc.jaxy.anlobehub.core.data.discovery.DiscoveryRepository
@@ -47,4 +49,7 @@ abstract class DataModule {
 
     @Binds
     abstract fun bindDiscoveryRepository(impl: DiscoveryRepositoryImpl): DiscoveryRepository
+
+    @Binds
+    abstract fun bindProviderRepository(impl: ProviderRepositoryImpl): ProviderRepository
 }

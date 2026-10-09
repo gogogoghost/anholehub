@@ -16,6 +16,9 @@
     <string name="server_unset">Not set</string>
     <string name="server_copied">Server address copied</string>
     <string name="kb_title">Knowledge bases</string>
+    <string name="providers_title">Providers</string>
+    <string name="providers_empty_title">No providers</string>
+    <string name="provider_models_empty_title">No models</string>
     <string name="browse">Browse</string>
     <string name="version_format">Version %1$s</string>
     <string name="account_signed_out">Signed out</string>

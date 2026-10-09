@@ -15,6 +15,9 @@
     <string name="server_unset">未设置</string>
     <string name="server_copied">已复制服务器地址</string>
     <string name="kb_title">知识库</string>
+    <string name="providers_title">供应商</string>
+    <string name="providers_empty_title">暂无供应商</string>
+    <string name="provider_models_empty_title">暂无模型</string>
     <string name="browse">浏览</string>
     <string name="version_format">版本号 %1$s</string>
     <string name="account_signed_out">未登录</string>

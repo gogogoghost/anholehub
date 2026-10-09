@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
@@ -47,6 +49,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -138,11 +141,14 @@ private fun ModelsContent(
     val spacing = MaterialTheme.spacing
     val snackbar = remember { SnackbarHostState() }
     var query by rememberSaveable { mutableStateOf("") }
-    val filtered = remember(models, query) {
+    var collapsed by rememberSaveable { mutableStateOf(setOf<String>()) }
+    // Picker shows enabled models only; manage availability in Settings.
+    val enabled = remember(models) { models.filter { it.enabled != false } }
+    val filtered = remember(enabled, query) {
         if (query.isBlank()) {
-            models
+            enabled
         } else {
-            models.filter {
+            enabled.filter {
                 (it.displayName ?: "").contains(query, ignoreCase = true) ||
                     it.id.contains(query, ignoreCase = true) ||
                     (it.providerId ?: "").contains(query, ignoreCase = true) ||
@@ -155,6 +161,8 @@ private fun ModelsContent(
             .toSortedMap(String.CASE_INSENSITIVE_ORDER)
             .mapValues { (_, list) -> list.sortedBy { it.displayName?.lowercase().orEmpty().ifBlank { it.id.lowercase() } } }
     }
+    // Searching expands everything; clearing restores collapse state.
+    fun isCollapsed(provider: String): Boolean = query.isBlank() && provider in collapsed
     Scaffold(
         topBar = {
             AnTopBar(
@@ -208,25 +216,51 @@ private fun ModelsContent(
                     )
                     else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                         grouped.forEach { (provider, list) ->
+                            val hidden = isCollapsed(provider)
                             stickyHeader(key = "header-$provider") {
-                                Text(
-                                    text = provider,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = spacing.l, vertical = spacing.s),
-                                )
+                                Surface(
+                                    onClick = {
+                                        collapsed = if (hidden) collapsed - provider else collapsed + provider
+                                    },
+                                    color = MaterialTheme.colorScheme.surface,
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = spacing.l, vertical = spacing.s),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(spacing.s),
+                                    ) {
+                                        Icon(
+                                            imageVector = if (hidden) Icons.Filled.ChevronRight else Icons.Filled.ExpandMore,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Text(
+                                            text = provider,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Text(
+                                            text = list.size.toString(),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
                             }
-                            items(list, key = { (it.providerId.orEmpty()) + "\n" + it.id }) { model ->
-                                ModelRow(
-                                    model = model,
-                                    selected = selectedModelId != null &&
-                                        model.id == selectedModelId &&
-                                        (selectedProviderId == null || model.providerId == selectedProviderId),
-                                    onPick = onPick,
-                                    onShowDetail = onShowDetail,
-                                )
+                            if (!hidden) {
+                                items(list, key = { (it.providerId.orEmpty()) + "\n" + it.id }) { model ->
+                                    ModelRow(
+                                        model = model,
+                                        selected = selectedModelId != null &&
+                                            model.id == selectedModelId &&
+                                            (selectedProviderId == null || model.providerId == selectedProviderId),
+                                        onPick = onPick,
+                                        onShowDetail = onShowDetail,
+                                    )
+                                }
                             }
                         }
                     }

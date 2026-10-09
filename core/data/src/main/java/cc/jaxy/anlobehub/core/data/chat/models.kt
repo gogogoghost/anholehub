@@ -226,7 +226,8 @@ fun JsonElement.asAIModelList(): List<AIModel> {
     }
 }
 
-private fun JsonObject.toAIModel(
+/** 单模型对象解析（`getAiProviderModelList` 数组项复用），缺字段走 fallback。 */
+fun JsonObject.toAIModel(
     fallbackProviderId: String? = null,
     fallbackProviderName: String? = null,
 ): AIModel {
@@ -264,4 +265,28 @@ private fun JsonObject.toAIModel(
         maxOutput = (this["maxOutput"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull(),
         abilities = abilities,
     )
+}
+
+/**
+ * `aiModel.getAiProviderModelList` 返回：纯数组（AiProviderModelListItem 全字段，
+ * 含 enabled）。兼容包一层 object 的形状，providerId 缺失时回填 [fallbackProviderId]。
+ */
+fun JsonElement.asAIModelListWithFallback(fallbackProviderId: String? = null): List<AIModel> {
+    return try {
+        val arr: JsonArray = when (this) {
+            is JsonArray -> this
+            is JsonObject -> (this["items"] as? JsonArray)
+                ?: (this["models"] as? JsonArray)
+                ?: (this["data"] as? JsonArray)
+                ?: (this["list"] as? JsonArray)
+                ?: return emptyList()
+            else -> return emptyList()
+        }
+        arr.mapNotNull { m ->
+            val mObj = m as? JsonObject ?: return@mapNotNull null
+            runCatching { mObj.toAIModel(fallbackProviderId = fallbackProviderId) }.getOrNull()
+        }
+    } catch (_: Exception) {
+        emptyList()
+    }
 }
