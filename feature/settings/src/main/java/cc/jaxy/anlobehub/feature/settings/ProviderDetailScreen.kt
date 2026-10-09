@@ -13,6 +13,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.NetworkCheck
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.SmartToy
@@ -24,6 +28,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Card
@@ -41,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,6 +65,7 @@ import cc.jaxy.anlobehub.core.common.util.isEditableProvider
 import cc.jaxy.anlobehub.core.common.util.providerProxyUrl
 import cc.jaxy.anlobehub.core.designsystem.component.AnTopBar
 import cc.jaxy.anlobehub.core.designsystem.component.ErrorBox
+import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
 import cc.jaxy.anlobehub.core.designsystem.component.PasswordField
 import cc.jaxy.anlobehub.core.designsystem.component.SectionTitle
 import cc.jaxy.anlobehub.core.designsystem.component.SettingRow
@@ -290,6 +297,7 @@ private fun ProviderDetailContent(
                     checkModelOverride = uiState.checkModelOverride,
                     fetching = uiState.fetching,
                     remoteModels = uiState.remoteModels,
+                    fetchedCount = uiState.remoteModels?.size,
                     onSave = { key, url -> viewModel.save(key, url) },
                     onCheck = { viewModel.check() },
                     onFetch = { key, url -> viewModel.fetchRemoteModels(key, url) },
@@ -309,6 +317,7 @@ private fun ProviderDetailBody(
     checkModelOverride: String?,
     fetching: Boolean,
     remoteModels: List<String>?,
+    fetchedCount: Int?,
     onSave: (apiKey: String, baseURL: String) -> Unit,
     onCheck: () -> Unit,
     onFetch: (apiKey: String, baseURL: String) -> Unit,
@@ -321,6 +330,8 @@ private fun ProviderDetailBody(
     val defaultURL = providerProxyUrl(detail.id)
     var apiKey by rememberSaveable(detail.id) { mutableStateOf(detail.apiKey.orEmpty()) }
     var baseURL by rememberSaveable(detail.id) { mutableStateOf(detail.baseURL.orEmpty()) }
+    val checkModel = checkModelOverride?.takeIf { it.isNotBlank() }
+        ?: detail.checkModel?.takeIf { it.isNotBlank() }
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(vertical = spacing.s),
@@ -329,39 +340,16 @@ private fun ProviderDetailBody(
             SectionTitle(text = stringResource(R.string.provider_detail_section_basic))
         }
         item(key = "basic-card") {
-            Card(modifier = Modifier.padding(horizontal = spacing.l)) {
-                Column {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.provider_detail_name)) },
-                        supportingContent = {
-                            Text(detail.name?.takeIf { it.isNotBlank() } ?: detail.id)
-                        },
-                    )
-                    HorizontalDivider()
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.provider_detail_description)) },
-                        supportingContent = {
-                            Text(
-                                detail.description?.takeIf { it.isNotBlank() }
-                                    ?: stringResource(R.string.provider_detail_no_description),
-                            )
-                        },
-                    )
-                    HorizontalDivider()
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.provider_detail_source)) },
-                        supportingContent = {
-                            Text(
-                                detail.source?.takeIf { it.isNotBlank() }
-                                    ?: stringResource(R.string.provider_detail_no_source),
-                            )
-                        },
-                    )
-                }
-            }
-        }
-        item(key = "models-row") {
-            Card(modifier = Modifier.padding(horizontal = spacing.l)) {
+            Column {
+                ListItem(
+                    headlineContent = { Text(detail.name?.takeIf { it.isNotBlank() } ?: detail.id) },
+                    supportingContent = { Text(detail.id) },
+                    leadingContent = {
+                        InitialAvatar(name = detail.name ?: detail.id, size = 40.dp)
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+                HorizontalDivider()
                 SettingRow(
                     icon = Icons.Filled.SmartToy,
                     title = stringResource(R.string.provider_detail_models),
@@ -371,191 +359,155 @@ private fun ProviderDetailBody(
             }
         }
         if (editable) {
-        item(key = "credentials-title") {
-            SectionTitle(text = stringResource(R.string.provider_detail_section_credentials))
-        }
-        item(key = "credentials-card") {
-            Card(modifier = Modifier.padding(horizontal = spacing.l)) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(spacing.l),
-                    verticalArrangement = Arrangement.spacedBy(spacing.m),
-                ) {
-                    PasswordField(
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        label = stringResource(R.string.provider_detail_apikey),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    AnTextField(
-                        value = baseURL,
-                        onValueChange = { baseURL = it },
-                        label = stringResource(R.string.provider_detail_baseurl),
-                        modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            if (baseURL.isNotBlank()) {
-                                IconButton(onClick = { baseURL = "" }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = stringResource(DsR.string.common_clear),
+            item(key = "credentials-title") {
+                SectionTitle(text = stringResource(R.string.provider_detail_section_credentials))
+            }
+            item(key = "credentials-card") {
+                Card(modifier = Modifier.padding(horizontal = spacing.l)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(spacing.l),
+                        verticalArrangement = Arrangement.spacedBy(spacing.m),
+                    ) {
+                        PasswordField(
+                            value = apiKey,
+                            onValueChange = { apiKey = it },
+                            label = stringResource(R.string.provider_detail_apikey),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        AnTextField(
+                            value = baseURL,
+                            onValueChange = { baseURL = it },
+                            label = stringResource(R.string.provider_detail_baseurl),
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                if (baseURL.isNotBlank()) {
+                                    IconButton(onClick = { baseURL = "" }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = stringResource(DsR.string.common_clear),
+                                        )
+                                    }
+                                }
+                            },
+                            supportingText = {
+                                Text(
+                                    defaultURL?.let {
+                                        stringResource(R.string.provider_detail_baseurl_default, it)
+                                    } ?: stringResource(R.string.provider_detail_baseurl_optional),
+                                )
+                            },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Uri,
+                                imeAction = ImeAction.Done,
+                            ),
+                        )
+                        FilledTonalButton(
+                            onClick = { onSave(apiKey, baseURL) },
+                            enabled = !saving,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            if (saving) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text(stringResource(R.string.provider_detail_save))
+                            }
+                        }
+                    }
+                }
+            }
+            item(key = "connectivity-title") {
+                SectionTitle(text = stringResource(R.string.provider_detail_section_connectivity))
+            }
+            item(key = "connectivity-card") {
+                Column {
+                        SettingRow(
+                            icon = Icons.Filled.Psychology,
+                            title = stringResource(R.string.provider_detail_check_model),
+                            subtitle = checkModel
+                                ?: stringResource(R.string.provider_detail_no_check_model),
+                            onClick = onPickCheckModel,
+                        )
+                        HorizontalDivider()
+                        SettingRow(
+                            icon = Icons.Filled.NetworkCheck,
+                            title = stringResource(R.string.provider_detail_check),
+                            subtitle = when {
+                                checking -> stringResource(R.string.provider_detail_checking)
+                                checkResult == null -> null
+                                checkResult.ok -> stringResource(R.string.provider_detail_check_ok)
+                                else -> checkResult.error?.takeIf { it.isNotBlank() }
+                                    ?: stringResource(R.string.provider_detail_check_failed)
+                            },
+                            onClick = onCheck,
+                            trailing = {
+                                when {
+                                    checking -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                    checkResult == null -> null
+                                    checkResult.ok -> Icon(
+                                        imageVector = Icons.Filled.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    else -> Icon(
+                                        imageVector = Icons.Filled.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
                                     )
                                 }
-                            }
-                        },
-                        supportingText = {
-                            Text(
-                                defaultURL?.let {
-                                    stringResource(R.string.provider_detail_baseurl_default, it)
-                                } ?: stringResource(R.string.provider_detail_baseurl_optional),
-                            )
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Uri,
-                            imeAction = ImeAction.Done,
-                        ),
+                            },
+                        )
+                        HorizontalDivider()
+                        SettingRow(
+                            icon = Icons.Filled.CloudDownload,
+                            title = stringResource(R.string.provider_detail_fetch),
+                            subtitle = fetchedCount?.let {
+                                stringResource(R.string.provider_detail_remote_count, it)
+                            },
+                            onClick = { onFetch(apiKey, baseURL) },
+                            trailing = {
+                                if (fetching) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
+                            },
                     )
-                    Button(
-                        onClick = { onSave(apiKey, baseURL) },
-                        enabled = !saving,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        if (saving) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text(stringResource(R.string.provider_detail_save))
-                        }
-                    }
                 }
             }
-        }
-        item(key = "connectivity-title") {
-            SectionTitle(text = stringResource(R.string.provider_detail_section_connectivity))
-        }
-        item(key = "connectivity-card") {
-            Card(modifier = Modifier.padding(horizontal = spacing.l)) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(spacing.l),
-                    verticalArrangement = Arrangement.spacedBy(spacing.m),
-                ) {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.provider_detail_check_model)) },
-                        supportingContent = {
-                            Text(
-                                checkModelOverride?.takeIf { it.isNotBlank() }
-                                    ?: detail.checkModel?.takeIf { it.isNotBlank() }
-                                    ?: stringResource(R.string.provider_detail_no_check_model),
-                            )
-                        },
-                        trailingContent = {
-                            Icon(
-                                imageVector = Icons.Filled.ChevronRight,
-                                contentDescription = null,
-                            )
-                        },
-                        modifier = Modifier.clickable(onClick = onPickCheckModel),
-                    )
-                    FilledTonalButton(
-                        onClick = onCheck,
-                        enabled = !checking,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        if (checking) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text(stringResource(R.string.provider_detail_check))
-                        }
-                    }
-                    if (checking) {
-                        Text(
-                            stringResource(R.string.provider_detail_checking),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    checkResult?.let { result ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(spacing.s),
+            if (remoteModels != null) {
+                item(key = "remote-title") {
+                    SectionTitle(text = stringResource(R.string.provider_detail_section_remote_models))
+                }
+                item(key = "remote-card") {
+                    Card(modifier = Modifier.padding(horizontal = spacing.l)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(spacing.l),
+                            verticalArrangement = Arrangement.spacedBy(spacing.xs),
                         ) {
-                            if (result.ok) {
-                                Icon(
-                                    imageVector = Icons.Filled.CheckCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                                Text(stringResource(R.string.provider_detail_check_ok))
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Filled.ErrorOutline,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
+                            Text(
+                                stringResource(R.string.provider_detail_remote_count, remoteModels.size),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            remoteModels.take(REMOTE_MODEL_PREVIEW_LIMIT).forEach { id ->
                                 Text(
-                                    result.error?.takeIf { it.isNotBlank() }
-                                        ?: stringResource(R.string.provider_detail_check_failed),
-                                    color = MaterialTheme.colorScheme.error,
+                                    text = id,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                        }
-                    }
-                }
-            }
-        }
-        item(key = "remote-title") {
-            SectionTitle(text = stringResource(R.string.provider_detail_section_remote_models))
-        }
-        item(key = "remote-card") {
-            Card(modifier = Modifier.padding(horizontal = spacing.l)) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(spacing.l),
-                    verticalArrangement = Arrangement.spacedBy(spacing.m),
-                ) {
-                    FilledTonalButton(
-                        onClick = { onFetch(apiKey, baseURL) },
-                        enabled = !fetching,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        if (fetching) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text(stringResource(R.string.provider_detail_fetch))
-                        }
-                    }
-                    if (fetching) {
-                        Text(
-                            stringResource(R.string.provider_detail_fetching),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    remoteModels?.let { models ->
-                        Text(
-                            stringResource(R.string.provider_detail_remote_count, models.size),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        models.take(REMOTE_MODEL_PREVIEW_LIMIT).forEach { id ->
                             Text(
-                                text = id,
+                                stringResource(R.string.provider_detail_remote_note),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
-                    Text(
-                        stringResource(R.string.provider_detail_remote_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
-        }
         }
     }
 }
