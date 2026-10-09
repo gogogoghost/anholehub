@@ -43,6 +43,7 @@ fun AnTextField(
     isError: Boolean = false,
     singleLine: Boolean = true,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    readOnly: Boolean = false,
 ) {
     OutlinedTextField(
         value = value,
@@ -57,6 +58,7 @@ fun AnTextField(
         supportingText = supportingText,
         isError = isError,
         singleLine = singleLine,
+        readOnly = readOnly,
     )
 }
 

@@ -78,7 +78,7 @@ data object ProvidersRoute
 data class ProviderModelsRoute(val providerId: String, val providerName: String? = null)
 
 @Serializable
-data class ProviderDetailRoute(val providerId: String)
+data class ProviderDetailRoute(val providerId: String, val providerName: String? = null)
 
 
 @Serializable
@@ -263,8 +263,8 @@ fun AnlobehubNavHost() {
                 onProviderClick = { id, name ->
                     navController.navigate(ProviderModelsRoute(providerId = id, providerName = name))
                 },
-                onConfigClick = { id ->
-                    navController.navigate(ProviderDetailRoute(providerId = id))
+                onConfigClick = { id, name ->
+                    navController.navigate(ProviderDetailRoute(providerId = id, providerName = name))
                 },
             )
         }
@@ -284,6 +284,7 @@ fun AnlobehubNavHost() {
             }
             ProviderDetailScreen(
                 providerId = route.providerId,
+                providerName = route.providerName,
                 onBack = { navController.popBackStack() },
                 onModelsClick = { id, name ->
                     navController.navigate(ProviderModelsRoute(providerId = id, providerName = name))

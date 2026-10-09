@@ -63,8 +63,15 @@ import cc.jaxy.anlobehub.core.data.provider.ProviderDetail
 import cc.jaxy.anlobehub.core.data.provider.ProviderRepository
 import cc.jaxy.anlobehub.core.data.session.ServerStore
 import cc.jaxy.anlobehub.core.designsystem.component.AnTextField
-import cc.jaxy.anlobehub.core.common.util.isEditableProvider
-import cc.jaxy.anlobehub.core.common.util.providerProxyUrl
+import cc.jaxy.anlobehub.core.common.util.ApiKeyField
+import cc.jaxy.anlobehub.core.common.util.FieldType
+import cc.jaxy.anlobehub.core.common.util.VAULT_API_KEY
+import cc.jaxy.anlobehub.core.common.util.VAULT_AUTH_TYPE
+import cc.jaxy.anlobehub.core.common.util.VAULT_BASE_URL
+import cc.jaxy.anlobehub.core.common.util.inferBedrockAuthMode
+import cc.jaxy.anlobehub.core.common.util.providerConfigSpec
+import cc.jaxy.anlobehub.core.common.util.showClientFetchSwitch
+import cc.jaxy.anlobehub.core.common.util.specialFieldsFor
 import cc.jaxy.anlobehub.core.designsystem.component.AnTopBar
 import cc.jaxy.anlobehub.core.designsystem.component.ErrorBox
 import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
@@ -96,8 +103,11 @@ class ProviderDetailViewModel @Inject constructor(
         val detail: ProviderDetail? = null,
         val error: UiText? = null,
         val saving: Boolean = false,
-        val draftApiKey: String? = null,
-        val draftBaseURL: String? = null,
+        /** Edited keyVaults values; absent key = unchanged. */
+        val draftVaults: Map<String, String> = emptyMap(),
+        val draftAuthMode: String? = null,
+        val draftFetchOnClient: Boolean? = null,
+        val draftEnableResponseApi: Boolean? = null,
         val checking: Boolean = false,
         val checkResult: CheckResult? = null,
         val checkModelOverride: String? = null,
@@ -143,17 +153,40 @@ class ProviderDetailViewModel @Inject constructor(
         _event.value = null
     }
 
-    fun updateDraft(apiKey: String, baseURL: String) {
-        _uiState.value = _uiState.value.copy(draftApiKey = apiKey, draftBaseURL = baseURL)
+    fun updateDraft(key: String, value: String) {
+        _uiState.value = _uiState.value.copy(
+            draftVaults = _uiState.value.draftVaults + (key to value),
+        )
+    }
+
+    fun updateAuthMode(mode: String) {
+        _uiState.value = _uiState.value.copy(draftAuthMode = mode)
+    }
+
+    fun updateFetchOnClient(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(draftFetchOnClient = enabled)
+    }
+
+    fun updateEnableResponseApi(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(draftEnableResponseApi = enabled)
     }
 
     /** Saves the draft (TopBar action on the credentials sub-page). */
     fun saveFromDraft() {
         val s = _uiState.value
-        save(s.draftApiKey, s.draftBaseURL)
+        save(s.draftVaults, s.draftFetchOnClient, s.draftEnableResponseApi)
     }
 
-    private fun save(apiKey: String?, baseURL: String?) {
+    /** Effective vault value: draft wins, stored second. */
+    fun vaultValue(key: String): String =
+        _uiState.value.draftVaults[key]
+            ?: _uiState.value.detail?.keyVaults?.get(key).orEmpty()
+
+    private fun save(
+        draftVaults: Map<String, String>,
+        fetchOnClient: Boolean?,
+        enableResponseApi: Boolean?,
+    ) {
         viewModelScope.launch {
             val id = providerId
             val detail = _uiState.value.detail
@@ -163,22 +196,28 @@ class ProviderDetailViewModel @Inject constructor(
                 return@launch
             }
             _uiState.value = _uiState.value.copy(saving = true)
-            val keyChanged = apiKey != null && apiKey != (detail?.apiKey ?: "")
-            val urlChanged = baseURL != null && baseURL != (detail?.baseURL ?: "")
+            // Only send changed values; a blanked credential means clear.
+            val vaults = draftVaults.filter { (k, v) ->
+                v != (detail?.keyVaults?.get(k).orEmpty())
+            }
             when (
                 val result = providerRepository.updateConfig(
                     baseUrl = baseUrl,
                     id = id,
-                    // Blank new key means "leave unchanged"; only send edits.
-                    apiKey = apiKey?.takeIf { keyChanged && it.isNotBlank() },
-                    baseURL = baseURL?.takeIf { urlChanged },
+                    keyVaults = vaults,
+                    fetchOnClient = fetchOnClient
+                        ?.takeIf { it != detail?.fetchOnClient },
+                    enableResponseApi = enableResponseApi
+                        ?.takeIf { it != detail?.enableResponseApi },
                 )
             ) {
                 is AnResult.Ok -> {
                     _uiState.value = _uiState.value.copy(
                         saving = false,
-                        draftApiKey = null,
-                        draftBaseURL = null,
+                        draftVaults = emptyMap(),
+                        draftAuthMode = null,
+                        draftFetchOnClient = null,
+                        draftEnableResponseApi = null,
                     )
                     _event.value = UiText.Res(R.string.provider_detail_saved)
                     load()
@@ -203,6 +242,11 @@ class ProviderDetailViewModel @Inject constructor(
             val model = _uiState.value.checkModelOverride
                 ?.takeIf { it.isNotBlank() }
                 ?: _uiState.value.detail?.checkModel?.takeIf { it.isNotBlank() }
+            if (model.isNullOrBlank()) {
+                _uiState.value = _uiState.value.copy(checking = false)
+                _event.value = UiText.Res(R.string.provider_detail_check_model_required)
+                return@launch
+            }
             when (val result = providerRepository.checkConnectivity(baseUrl, id, model)) {
                 is AnResult.Ok -> _uiState.value = _uiState.value.copy(
                     checking = false,
@@ -223,17 +267,18 @@ class ProviderDetailViewModel @Inject constructor(
 
     fun fetchRemoteModels() {
         viewModelScope.launch {
-            val detail = _uiState.value.detail
-            val draftKey = _uiState.value.draftApiKey
-            val draftURL = _uiState.value.draftBaseURL
-            val baseURL = draftURL?.takeIf { it.isNotBlank() }
-                ?: detail?.baseURL?.takeIf { it.isNotBlank() }.orEmpty()
+            val spec = providerConfigSpec(
+                providerId, _uiState.value.detail?.source,
+            )
+            val baseURL = vaultValue(VAULT_BASE_URL).takeIf { it.isNotBlank() }
+                ?: spec.endpoint?.placeholder.orEmpty()
             if (baseURL.isBlank()) {
                 _event.value = UiText.Res(R.string.provider_detail_baseurl_required)
                 return@launch
             }
-            // Masked/stored key is not reusable for direct calls: require explicit entry.
-            val apiKey = draftKey?.takeIf { it.isNotBlank() }.orEmpty()
+            // Prefer the draft; fall back to the stored key (server returns
+            // the real value for full-access sessions).
+            val apiKey = vaultValue(VAULT_API_KEY)
             if (apiKey.isBlank()) {
                 _event.value = UiText.Res(R.string.provider_detail_apikey_required)
                 return@launch
@@ -257,6 +302,7 @@ class ProviderDetailViewModel @Inject constructor(
 @Composable
 fun ProviderDetailScreen(
     providerId: String,
+    providerName: String? = null,
     onBack: () -> Unit,
     onModelsClick: (providerId: String, providerName: String?) -> Unit = { _, _ -> },
     onPickCheckModel: () -> Unit = {},
@@ -264,6 +310,7 @@ fun ProviderDetailScreen(
 ) {
     ProviderDetailContent(
         providerId = providerId,
+        providerName = providerName,
         onBack = onBack,
         onModelsClick = onModelsClick,
         onPickCheckModel = onPickCheckModel,
@@ -275,6 +322,7 @@ fun ProviderDetailScreen(
 @Composable
 private fun ProviderDetailContent(
     providerId: String,
+    providerName: String? = null,
     onBack: () -> Unit,
     onModelsClick: (providerId: String, providerName: String?) -> Unit = { _, _ -> },
     onPickCheckModel: () -> Unit = {},
@@ -299,6 +347,7 @@ private fun ProviderDetailContent(
                     stringResource(R.string.provider_detail_section_credentials)
                 } else {
                     uiState.detail?.name?.takeIf { it.isNotBlank() }
+                        ?: providerName?.takeIf { it.isNotBlank() }
                         ?: uiState.detail?.id ?: providerId
                 },
                 onBack = { if (showCredentials) showCredentials = false else onBack() },
@@ -339,10 +388,15 @@ private fun ProviderDetailContent(
                     remoteModels = uiState.remoteModels,
                     fetchedCount = uiState.remoteModels?.size,
                     showCredentials = showCredentials,
-                    draftApiKey = uiState.draftApiKey,
-                    draftBaseURL = uiState.draftBaseURL,
+                    draftVaults = uiState.draftVaults,
+                    draftAuthMode = uiState.draftAuthMode,
+                    draftFetchOnClient = uiState.draftFetchOnClient,
+                    draftEnableResponseApi = uiState.draftEnableResponseApi,
                     onOpenCredentials = { showCredentials = true },
                     onDraftChange = viewModel::updateDraft,
+                    onAuthModeChange = viewModel::updateAuthMode,
+                    onFetchOnClientChange = viewModel::updateFetchOnClient,
+                    onEnableResponseApiChange = viewModel::updateEnableResponseApi,
                     onCheck = { viewModel.check() },
                     onFetch = { viewModel.fetchRemoteModels() },
                     onPickCheckModel = onPickCheckModel,
@@ -362,10 +416,15 @@ private fun ProviderDetailBody(
     remoteModels: List<String>?,
     fetchedCount: Int?,
     showCredentials: Boolean,
-    draftApiKey: String?,
-    draftBaseURL: String?,
+    draftVaults: Map<String, String>,
+    draftAuthMode: String?,
+    draftFetchOnClient: Boolean?,
+    draftEnableResponseApi: Boolean?,
     onOpenCredentials: () -> Unit,
-    onDraftChange: (apiKey: String, baseURL: String) -> Unit,
+    onDraftChange: (key: String, value: String) -> Unit,
+    onAuthModeChange: (String) -> Unit,
+    onFetchOnClientChange: (Boolean) -> Unit,
+    onEnableResponseApiChange: (Boolean) -> Unit,
     onCheck: () -> Unit,
     onFetch: () -> Unit,
     onModelsClick: () -> Unit = {},
@@ -373,12 +432,19 @@ private fun ProviderDetailBody(
     modifier: Modifier = Modifier,
 ) {
     val spacing = MaterialTheme.spacing
-    val editable = isEditableProvider(detail.id, detail.source)
-    val defaultURL = providerProxyUrl(detail.id)
-    val apiKey = draftApiKey ?: detail.apiKey.orEmpty()
-    val baseURL = draftBaseURL ?: detail.baseURL.orEmpty()
+    val spec = remember(detail.id, detail.source) {
+        providerConfigSpec(detail.id, detail.source)
+    }
+    fun vaultValue(key: String): String =
+        draftVaults[key] ?: detail.keyVaults[key].orEmpty()
+    val configured = vaultValue(VAULT_API_KEY).isNotBlank() ||
+        vaultValue(VAULT_BASE_URL).isNotBlank() ||
+        detail.keyVaults.any { (k, v) ->
+            k != VAULT_API_KEY && k != VAULT_BASE_URL && v.isNotBlank()
+        }
     val checkModel = checkModelOverride?.takeIf { it.isNotBlank() }
         ?: detail.checkModel?.takeIf { it.isNotBlank() }
+        ?: spec.checkModel?.takeIf { it.isNotBlank() }
     if (!showCredentials) {
     LazyColumn(
         modifier = modifier,
@@ -406,7 +472,7 @@ private fun ProviderDetailBody(
                 )
             }
         }
-        if (editable) {
+        if (spec.showConfig) {
             item(key = "credentials-title") {
                 SectionTitle(text = stringResource(R.string.provider_detail_section_credentials))
             }
@@ -414,7 +480,7 @@ private fun ProviderDetailBody(
                 SettingRow(
                     icon = Icons.Filled.Key,
                     title = stringResource(R.string.provider_detail_section_credentials),
-                    subtitle = if (apiKey.isNotBlank() || baseURL.isNotBlank()) {
+                    subtitle = if (configured) {
                         stringResource(R.string.provider_detail_credentials_set)
                     } else {
                         stringResource(R.string.provider_detail_credentials_unset)
@@ -516,63 +582,17 @@ private fun ProviderDetailBody(
         }
         }
     } else {
-        CredentialsForm(
-            apiKey = apiKey,
-            baseURL = baseURL,
-            defaultURL = defaultURL,
+        ProviderConfigForm(
+            detail = detail,
+            vaultValue = ::vaultValue,
+            draftAuthMode = draftAuthMode,
+            draftFetchOnClient = draftFetchOnClient,
+            draftEnableResponseApi = draftEnableResponseApi,
             onDraftChange = onDraftChange,
+            onAuthModeChange = onAuthModeChange,
+            onFetchOnClientChange = onFetchOnClientChange,
+            onEnableResponseApiChange = onEnableResponseApiChange,
             modifier = modifier,
-        )
-    }
-}
-
-@Composable
-private fun CredentialsForm(
-    apiKey: String,
-    baseURL: String,
-    defaultURL: String?,
-    onDraftChange: (apiKey: String, baseURL: String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val spacing = MaterialTheme.spacing
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(spacing.l),
-        verticalArrangement = Arrangement.spacedBy(spacing.m),
-    ) {
-        PasswordField(
-            value = apiKey,
-            onValueChange = { onDraftChange(it, baseURL) },
-            label = stringResource(R.string.provider_detail_apikey),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        AnTextField(
-            value = baseURL,
-            onValueChange = { onDraftChange(apiKey, it) },
-            label = stringResource(R.string.provider_detail_baseurl),
-            modifier = Modifier.fillMaxWidth(),
-            trailingIcon = {
-                if (baseURL.isNotBlank()) {
-                    IconButton(onClick = { onDraftChange(apiKey, "") }) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(DsR.string.common_clear),
-                        )
-                    }
-                }
-            },
-            supportingText = {
-                Text(
-                    defaultURL?.let {
-                        stringResource(R.string.provider_detail_baseurl_default, it)
-                    } ?: stringResource(R.string.provider_detail_baseurl_optional),
-                )
-            },
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Done,
-            ),
         )
     }
 }

@@ -40,7 +40,9 @@ data class AiProvider(
 /**
  * 供应商详情（`aiProvider.getAiProviderById` 返回）。
  *
- * Tolerant 解析：缺字段给缺省；`keyVaults` 内的 `apiKey`/`baseURL` 提取到顶层；
+ * Tolerant 解析：缺字段给缺省；`keyVaults` 整体透出为字符串 map（web
+ * `AiProviderKeyVaultsSchema` 为 `Record<string, string|map>`，各供应商键名
+ * 不同：`apiKey`/`baseURL`/`region`/`accessKeyId`/…），非字符串值丢弃；
  * 已配置时服务端可能返回掩码值，原样透出、不做脱敏判断。
  */
 data class ProviderDetail(
@@ -50,10 +52,14 @@ data class ProviderDetail(
     val enabled: Boolean = true,
     val source: String? = null,
     val checkModel: String? = null,
-    val apiKey: String? = null,
-    val baseURL: String? = null,
+    val keyVaults: Map<String, String> = emptyMap(),
     val fetchOnClient: Boolean? = null,
-)
+    val enableResponseApi: Boolean? = null,
+) {
+    /** Back-compat for the two generic vault keys. */
+    val apiKey: String? get() = keyVaults["apiKey"]
+    val baseURL: String? get() = keyVaults["baseURL"]
+}
 
 data class CheckResult(
     val ok: Boolean = false,
@@ -74,10 +80,10 @@ interface ProviderRepository {
     suspend fun updateConfig(
         baseUrl: String,
         id: String,
-        apiKey: String? = null,
-        baseURL: String? = null,
+        keyVaults: Map<String, String?> = emptyMap(),
         checkModel: String? = null,
         fetchOnClient: Boolean? = null,
+        enableResponseApi: Boolean? = null,
     ): AnResult<Unit>
 
     suspend fun checkConnectivity(
@@ -129,19 +135,23 @@ class ProviderRepositoryImpl @Inject constructor(
     override suspend fun updateConfig(
         baseUrl: String,
         id: String,
-        apiKey: String?,
-        baseURL: String?,
+        keyVaults: Map<String, String?>,
         checkModel: String?,
         fetchOnClient: Boolean?,
+        enableResponseApi: Boolean?,
     ): AnResult<Unit> {
-        val keyVaults = buildJsonObject {
-            if (apiKey != null) put("apiKey", apiKey)
-            if (baseURL != null) put("baseURL", baseURL)
+        val vaultsJson = buildJsonObject {
+            keyVaults.forEach { (k, v) ->
+                if (v != null) put(k, v)
+            }
         }
         val value = buildJsonObject {
-            if (keyVaults.isNotEmpty()) put("keyVaults", keyVaults)
+            if (vaultsJson.isNotEmpty()) put("keyVaults", vaultsJson)
             if (checkModel != null) put("checkModel", checkModel)
             if (fetchOnClient != null) put("fetchOnClient", fetchOnClient)
+            if (enableResponseApi != null) {
+                put("config", buildJsonObject { put("enableResponseApi", enableResponseApi) })
+            }
         }
         val input = buildJsonObject {
             put("id", id)
@@ -258,9 +268,11 @@ private fun JsonElement.toProviderDetail(): ProviderDetail {
     val obj = this as? JsonObject ?: return ProviderDetail()
     fun str(key: String): String? =
         (obj[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
-    val vaults = obj["keyVaults"] as? JsonObject
-    fun vaultStr(key: String): String? =
-        (vaults?.get(key) as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+    val vaults = (obj["keyVaults"] as? JsonObject)
+        ?.mapNotNull { (k, v) ->
+            (v as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { k to it }
+        }?.toMap().orEmpty()
+    val config = obj["config"] as? JsonObject
     return ProviderDetail(
         id = str("id") ?: "",
         name = str("name"),
@@ -269,10 +281,11 @@ private fun JsonElement.toProviderDetail(): ProviderDetail {
             ?.toBooleanStrictOrNull() ?: true,
         source = str("source"),
         checkModel = str("checkModel"),
-        apiKey = vaultStr("apiKey"),
-        baseURL = vaultStr("baseURL"),
+        keyVaults = vaults,
         fetchOnClient = (obj["fetchOnClient"] as? JsonPrimitive)?.contentOrNull
             ?.toBooleanStrictOrNull(),
+        enableResponseApi = (config?.get("enableResponseApi") as? JsonPrimitive)
+            ?.contentOrNull?.toBooleanStrictOrNull(),
     )
 }
 

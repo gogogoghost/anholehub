@@ -129,7 +129,7 @@ internal class ProvidersViewModel @Inject constructor(
 fun ProvidersScreen(
     onBack: () -> Unit,
     onProviderClick: (id: String, name: String) -> Unit,
-    onConfigClick: (id: String) -> Unit = {},
+    onConfigClick: (id: String, name: String?) -> Unit = { _, _ -> },
 ) {
     ProvidersContent(onBack = onBack, onProviderClick = onProviderClick, onConfigClick = onConfigClick)
 }
@@ -139,7 +139,7 @@ fun ProvidersScreen(
 private fun ProvidersContent(
     onBack: () -> Unit,
     onProviderClick: (id: String, name: String) -> Unit,
-    onConfigClick: (id: String) -> Unit,
+    onConfigClick: (id: String, name: String?) -> Unit,
     viewModel: ProvidersViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -185,7 +185,7 @@ private fun ProvidersBody(
     refreshing: Boolean,
     onRefresh: () -> Unit,
     onProviderClick: (id: String, name: String) -> Unit,
-    onConfigClick: (id: String) -> Unit,
+    onConfigClick: (id: String, name: String?) -> Unit,
     onToggle: (AiProvider, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -212,7 +212,7 @@ private fun ProvidersBody(
                         onClick = {
                             onProviderClick(provider.id, provider.name ?: provider.id)
                         },
-                        onConfigClick = { onConfigClick(provider.id) },
+                        onConfigClick = { onConfigClick(provider.id, provider.name) },
                         onToggle = { onToggle(provider, it) },
                     )
                 }
@@ -284,7 +284,7 @@ private fun ProvidersBodyPreview() {
             refreshing = false,
             onRefresh = {},
             onProviderClick = { _, _ -> },
-            onConfigClick = {},
+            onConfigClick = { _, _ -> },
             onToggle = { _, _ -> },
         )
     }
