@@ -7,6 +7,7 @@ import cc.jaxy.anlobehub.core.common.preferences.AppLanguage
 import cc.jaxy.anlobehub.core.common.preferences.AppTheme
 import cc.jaxy.anlobehub.core.data.preferences.UiPreferencesStore
 import cc.jaxy.anlobehub.core.data.session.AuthRepository
+import cc.jaxy.anlobehub.core.data.session.AuthState
 import cc.jaxy.anlobehub.core.data.session.ServerStore
 import cc.jaxy.anlobehub.core.data.user.UserProfile
 import cc.jaxy.anlobehub.core.data.user.UserRepository
@@ -50,35 +51,64 @@ class SettingsViewModel @Inject constructor(
     val switchServerEvent: SharedFlow<Unit> = _switchServerEvent.asSharedFlow()
 
     init {
-        load()
+        // Show instantly from cached auth state; refresh profile silently.
+        viewModelScope.launch {
+            val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
+            val cached = runCatching { authRepository.authState.first() }.getOrNull()
+            val cachedProfile = (cached as? AuthState.SignedIn)?.let {
+                UserProfile(userId = it.userId, email = it.email, fullName = it.name)
+            }
+            _uiState.value = _uiState.value.copy(
+                baseUrl = baseUrl,
+                profile = cachedProfile,
+                loading = false,
+                error = if (baseUrl.isNullOrBlank()) UiText.Res(R.string.no_server) else null,
+            )
+            if (!baseUrl.isNullOrBlank()) refreshProfile(baseUrl, silent = true)
+        }
     }
 
     fun load() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(loading = true, error = null)
             val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
             if (baseUrl.isNullOrBlank()) {
                 _uiState.value = _uiState.value.copy(
                     baseUrl = null,
-                    profile = null,
                     loading = false,
                     error = UiText.Res(R.string.no_server),
                 )
                 return@launch
             }
-            val profile = when (val result = userRepository.getUserState(baseUrl)) {
-                is AnResult.Ok -> result.value
-                is AnResult.Err -> {
+            // Keep showing cached content; only show spinner when nothing to show.
+            if (_uiState.value.profile == null) {
+                _uiState.value = _uiState.value.copy(baseUrl = baseUrl, loading = true, error = null)
+            } else {
+                _uiState.value = _uiState.value.copy(baseUrl = baseUrl, error = null)
+            }
+            refreshProfile(baseUrl, silent = false)
+        }
+    }
+
+    private suspend fun refreshProfile(baseUrl: String, silent: Boolean) {
+        when (val result = userRepository.getUserState(baseUrl)) {
+            is AnResult.Ok -> _uiState.value = _uiState.value.copy(
+                baseUrl = baseUrl,
+                profile = result.value,
+                loading = false,
+                error = null,
+            )
+            is AnResult.Err -> {
+                // Silent refresh failure must not wipe cached content.
+                if (silent && _uiState.value.profile != null) {
+                    _uiState.value = _uiState.value.copy(baseUrl = baseUrl, loading = false)
+                } else {
                     _uiState.value = _uiState.value.copy(
                         baseUrl = baseUrl,
-                        profile = null,
                         loading = false,
                         error = result.error.toUiText(),
                     )
-                    return@launch
                 }
             }
-            _uiState.value = UiState(baseUrl = baseUrl, profile = profile)
         }
     }
 

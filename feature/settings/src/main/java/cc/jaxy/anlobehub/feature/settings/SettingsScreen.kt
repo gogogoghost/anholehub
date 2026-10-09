@@ -124,6 +124,7 @@ private fun SettingsContent(
                     language = language,
                     onThemeChange = { viewModel.setTheme(it) },
                     onLanguageChange = { viewModel.setLanguage(it) },
+                    modifier = Modifier.padding(padding),
                 )
         }
     }
