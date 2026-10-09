@@ -12,6 +12,7 @@ import cc.jaxy.anlobehub.core.designsystem.text.UiText
 import cc.jaxy.anlobehub.core.designsystem.text.toUiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,28 +60,24 @@ class AgentsViewModel @Inject constructor(
                 )
                 return@launch
             }
-            when (val result = agentRepository.listAgents(baseUrl)) {
-                is AnResult.Ok -> {
-                    _uiState.value = _uiState.value.copy(
-                        loading = false,
-                        agents = result.value,
-                        error = null,
-                    )
-                    loadModels(baseUrl)
-                }
-                is AnResult.Err ->
-                    _uiState.value = _uiState.value.copy(
-                        loading = false,
-                        error = result.error.toUiText(),
-                    )
+            // Agents + models in parallel; models only back the create sheet.
+            val agentsDeferred = async { agentRepository.listAgents(baseUrl) }
+            val modelsDeferred = async { modelRepository.listModels(baseUrl) }
+            when (val result = agentsDeferred.await()) {
+                is AnResult.Ok -> _uiState.value = _uiState.value.copy(
+                    loading = false,
+                    agents = result.value,
+                    error = null,
+                )
+                is AnResult.Err -> _uiState.value = _uiState.value.copy(
+                    loading = false,
+                    error = result.error.toUiText(),
+                )
             }
-        }
-    }
-
-    private suspend fun loadModels(baseUrl: String) {
-        when (val result = modelRepository.listModels(baseUrl)) {
-            is AnResult.Ok -> _uiState.value = _uiState.value.copy(models = result.value)
-            is AnResult.Err -> Unit
+            when (val models = modelsDeferred.await()) {
+                is AnResult.Ok -> _uiState.value = _uiState.value.copy(models = models.value)
+                is AnResult.Err -> Unit
+            }
         }
     }
 

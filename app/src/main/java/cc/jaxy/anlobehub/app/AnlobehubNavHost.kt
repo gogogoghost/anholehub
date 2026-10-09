@@ -47,9 +47,6 @@ import cc.jaxy.anlobehub.feature.settings.SettingsViewModel
 import kotlinx.serialization.Serializable
 
 @Serializable
-data object StartupRoute
-
-@Serializable
 data object ServerRoute
 
 @Serializable
@@ -97,41 +94,44 @@ fun AnlobehubNavHost() {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
+    // Startup gate: runs once, in parallel with the first screen. Resolves
+    // the start destination from local state (no network on the path):
+    // no server -> Server, otherwise Agents (auth refreshes in background
+    // and redirects to Login only when the session is actually invalid).
+    val startupViewModel: StartupViewModel = hiltViewModel()
+    val startDestination by startupViewModel.startDestination.collectAsStateWithLifecycle()
+    val authRedirect by startupViewModel.authRedirect.collectAsStateWithLifecycle()
+    // Consume one-shot auth redirects (session expired mid-flight).
+    LaunchedEffect(authRedirect) {
+        val target = authRedirect ?: return@LaunchedEffect
+        startupViewModel.consumeRedirect()
+        when (target) {
+            is StartupViewModel.Redirect.Server ->
+                navController.navigate(ServerRoute) {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                }
+            is StartupViewModel.Redirect.Login ->
+                navController.navigate(LoginRoute(target.baseUrl)) {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                }
+        }
+    }
+    val resolvedStart = startDestination
+    if (resolvedStart == null) {
+        // Local DataStore read only (~ms); Splash still covers this frame.
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            LoadingBox()
+        }
+        return
+    }
     NavHost(
         navController = navController,
-        startDestination = StartupRoute,
+        startDestination = resolvedStart,
         enterTransition = { slideInHorizontally(initialOffsetX = { it / 4 }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)) },
         exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 4 }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)) },
         popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 4 }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)) },
         popExitTransition = { slideOutHorizontally(targetOffsetX = { it / 4 }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)) },
     ) {
-        composable<StartupRoute> {
-            val viewModel: StartupViewModel = hiltViewModel()
-            val destination by viewModel.destination.collectAsStateWithLifecycle()
-            LaunchedEffect(destination) {
-                when (val d = destination) {
-                    is StartupViewModel.Destination.Loading -> Unit
-                    is StartupViewModel.Destination.Server -> {
-                        navController.navigate(ServerRoute) {
-                            popUpTo(StartupRoute) { inclusive = true }
-                        }
-                    }
-                    is StartupViewModel.Destination.Login -> {
-                        navController.navigate(LoginRoute(d.baseUrl)) {
-                            popUpTo(StartupRoute) { inclusive = true }
-                        }
-                    }
-                    is StartupViewModel.Destination.Home -> {
-                        navController.navigate(AgentsRoute) {
-                            popUpTo(StartupRoute) { inclusive = true }
-                        }
-                    }
-                }
-            }
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                LoadingBox()
-            }
-        }
         composable<ServerRoute> {
             ServerScreen(onServerConfirmed = { baseUrl ->
                 navController.navigate(LoginRoute(baseUrl))

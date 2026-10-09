@@ -14,37 +14,51 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+/**
+ * Startup gate. [startDestination] resolves from local state only (DataStore
+ * baseUrl + cached auth), so first paint never waits on network. The session
+ * refresh runs in parallel; [authRedirect] fires only when the cached
+ * session turns out invalid.
+ */
 @HiltViewModel
 class StartupViewModel @Inject constructor(
     private val serverStore: ServerStore,
     private val authRepository: AuthRepository,
 ) : ViewModel() {
 
-    sealed interface Destination {
-        data object Loading : Destination
-        data object Server : Destination
-        data class Login(val baseUrl: String) : Destination
-        data object Home : Destination
+    sealed interface Redirect {
+        data object Server : Redirect
+        data class Login(val baseUrl: String) : Redirect
     }
 
-    private val _destination = MutableStateFlow<Destination>(Destination.Loading)
-    val destination: StateFlow<Destination> = _destination.asStateFlow()
+    private val _startDestination = MutableStateFlow<Any?>(null)
+    val startDestination: StateFlow<Any?> = _startDestination.asStateFlow()
+
+    private val _authRedirect = MutableStateFlow<Redirect?>(null)
+    val authRedirect: StateFlow<Redirect?> = _authRedirect.asStateFlow()
+
+    fun consumeRedirect() {
+        _authRedirect.value = null
+    }
 
     init {
         viewModelScope.launch {
             val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
             if (baseUrl.isNullOrBlank()) {
-                _destination.value = Destination.Server
+                _startDestination.value = ServerRoute
                 return@launch
             }
+            // Optimistic: go straight home; verify the session in parallel.
+            _startDestination.value = AgentsRoute
+            val cached = runCatching { authRepository.authState.first() }.getOrNull()
             val state = when (val result = authRepository.refresh(baseUrl)) {
                 is AnResult.Ok -> result.value
-                is AnResult.Err -> AuthState.SignedOut
+                // Network error with a cached session: stay home (offline);
+                // only a definitive signed-out pushes to Login.
+                is AnResult.Err -> if (cached is AuthState.SignedIn) cached else AuthState.SignedOut
             }
-            _destination.value = if (state is AuthState.SignedIn) {
-                Destination.Home
-            } else {
-                Destination.Login(baseUrl)
+            if (state !is AuthState.SignedIn) {
+                _authRedirect.value = Redirect.Login(baseUrl)
             }
         }
     }
