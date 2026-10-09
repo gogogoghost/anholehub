@@ -8,8 +8,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -126,8 +129,9 @@ internal class ProvidersViewModel @Inject constructor(
 fun ProvidersScreen(
     onBack: () -> Unit,
     onProviderClick: (id: String, name: String) -> Unit,
+    onConfigClick: (id: String) -> Unit = {},
 ) {
-    ProvidersContent(onBack = onBack, onProviderClick = onProviderClick)
+    ProvidersContent(onBack = onBack, onProviderClick = onProviderClick, onConfigClick = onConfigClick)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -135,6 +139,7 @@ fun ProvidersScreen(
 private fun ProvidersContent(
     onBack: () -> Unit,
     onProviderClick: (id: String, name: String) -> Unit,
+    onConfigClick: (id: String) -> Unit,
     viewModel: ProvidersViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -166,6 +171,7 @@ private fun ProvidersContent(
                     refreshing = uiState.loading,
                     onRefresh = { viewModel.load() },
                     onProviderClick = onProviderClick,
+                    onConfigClick = onConfigClick,
                     onToggle = { provider, enabled -> viewModel.toggle(provider, enabled) },
                     modifier = Modifier.fillMaxSize().padding(padding),
                 )
@@ -179,6 +185,7 @@ private fun ProvidersBody(
     refreshing: Boolean,
     onRefresh: () -> Unit,
     onProviderClick: (id: String, name: String) -> Unit,
+    onConfigClick: (id: String) -> Unit,
     onToggle: (AiProvider, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -205,6 +212,7 @@ private fun ProvidersBody(
                         onClick = {
                             onProviderClick(provider.id, provider.name ?: provider.id)
                         },
+                        onConfigClick = { onConfigClick(provider.id) },
                         onToggle = { onToggle(provider, it) },
                     )
                 }
@@ -217,6 +225,7 @@ private fun ProvidersBody(
 private fun ProviderRow(
     provider: AiProvider,
     onClick: () -> Unit,
+    onConfigClick: () -> Unit,
     onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -244,10 +253,20 @@ private fun ProviderRow(
                 InitialAvatar(name = provider.name?.takeIf { it.isNotBlank() } ?: provider.id)
             },
             trailingContent = {
-                Switch(
-                    checked = provider.enabled,
-                    onCheckedChange = onToggle,
-                )
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onConfigClick) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = null,
+                        )
+                    }
+                    Switch(
+                        checked = provider.enabled,
+                        onCheckedChange = onToggle,
+                    )
+                }
             },
         )
     }
@@ -265,6 +284,7 @@ private fun ProvidersBodyPreview() {
             refreshing = false,
             onRefresh = {},
             onProviderClick = { _, _ -> },
+            onConfigClick = {},
             onToggle = { _, _ -> },
         )
     }

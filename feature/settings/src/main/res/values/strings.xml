@@ -28,4 +28,34 @@
     <string name="kb_untitled">Untitled knowledge base</string>
     <string name="kb_wip">Knowledge base details coming soon</string>
     <string name="discovery_empty_desc">Pull to refresh, or check back later</string>
+    <string name="provider_detail_section_basic">Basic info</string>
+    <string name="provider_detail_section_credentials">Credentials</string>
+    <string name="provider_detail_section_connectivity">Connectivity</string>
+    <string name="provider_detail_section_remote_models">Remote models</string>
+    <string name="provider_detail_name">Name</string>
+    <string name="provider_detail_description">Description</string>
+    <string name="provider_detail_no_description">No description</string>
+    <string name="provider_detail_source">Source</string>
+    <string name="provider_detail_no_source">Unknown</string>
+    <string name="provider_detail_apikey">API Key</string>
+    <string name="provider_detail_baseurl">Base URL</string>
+    <string name="provider_detail_save">Save</string>
+    <string name="provider_detail_saved">Configuration saved</string>
+    <string name="provider_detail_check_model">Check model</string>
+    <string name="provider_detail_no_check_model">Not set</string>
+    <string name="provider_detail_check">Check connectivity</string>
+    <string name="provider_detail_checking">Checking…</string>
+    <string name="provider_detail_check_ok">Connection OK</string>
+    <string name="provider_detail_check_failed">Check failed</string>
+    <string name="provider_detail_fetch">Fetch remote models</string>
+    <string name="provider_detail_fetching">Fetching…</string>
+    <string name="provider_detail_remote_count">%1$d models fetched</string>
+    <string name="provider_detail_remote_note">Remote list is read-only. To enable models, go to model management.</string>
+    <string name="provider_detail_baseurl_required">Set the Base URL first</string>
+    <string name="provider_detail_apikey_required">Enter the API Key first</string>
+    <string name="provider_detail_baseurl_hint">e.g. https://api.example.com/v1</string>
+    <string name="provider_detail_baseurl_optional">Blank = use provider default</string>
+    <string name="provider_detail_models">Models</string>
+    <string name="provider_detail_models_desc">Enable models for this provider</string>
+    <string name="provider_detail_baseurl_default">Default: %1$s (blank to use)</string>
 </resources>

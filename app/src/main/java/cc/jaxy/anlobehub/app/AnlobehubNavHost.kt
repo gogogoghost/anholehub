@@ -38,6 +38,7 @@ import cc.jaxy.anlobehub.feature.chat.ChatScreen
 import cc.jaxy.anlobehub.feature.chat.ChatViewModel
 import cc.jaxy.anlobehub.feature.models.ModelsScreen
 import cc.jaxy.anlobehub.feature.settings.KnowledgeBasesScreen
+import cc.jaxy.anlobehub.feature.settings.ProviderDetailScreen
 import cc.jaxy.anlobehub.feature.settings.ProviderModelsScreen
 import cc.jaxy.anlobehub.feature.settings.ProvidersScreen
 import cc.jaxy.anlobehub.feature.settings.SettingsScreen
@@ -74,6 +75,9 @@ data object ProvidersRoute
 
 @Serializable
 data class ProviderModelsRoute(val providerId: String, val providerName: String? = null)
+
+@Serializable
+data class ProviderDetailRoute(val providerId: String)
 
 
 @Serializable
@@ -255,6 +259,19 @@ fun AnlobehubNavHost() {
             ProvidersScreen(
                 onBack = { navController.popBackStack() },
                 onProviderClick = { id, name ->
+                    navController.navigate(ProviderModelsRoute(providerId = id, providerName = name))
+                },
+                onConfigClick = { id ->
+                    navController.navigate(ProviderDetailRoute(providerId = id))
+                },
+            )
+        }
+        composable<ProviderDetailRoute> { entry ->
+            val route = entry.toRoute<ProviderDetailRoute>()
+            ProviderDetailScreen(
+                providerId = route.providerId,
+                onBack = { navController.popBackStack() },
+                onModelsClick = { id, name ->
                     navController.navigate(ProviderModelsRoute(providerId = id, providerName = name))
                 },
             )
