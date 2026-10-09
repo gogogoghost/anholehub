@@ -72,6 +72,7 @@ fun AgentEditScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val errorText = uiState.error?.resolve()
     var confirmDelete by remember { mutableStateOf(false) }
     LaunchedEffect(agentId) { viewModel.bind(agentId) }
@@ -167,6 +168,16 @@ fun AgentEditScreen(
                     onOpenModelPicker(current)
                 },
                 onModelClear = viewModel::clearModel,
+                onUploadAvatar = { uri ->
+                    val prepared = AvatarImage.prepare(context, uri)
+                    android.util.Log.d(
+                        "AgentEdit",
+                        "prepared=${prepared?.bytes?.size}",
+                    )
+                    if (prepared != null) {
+                        viewModel.uploadAvatar(prepared.bytes, prepared.mime)
+                    }
+                },
                 modifier = Modifier.fillMaxSize().padding(padding),
             )
         }
@@ -209,17 +220,29 @@ private fun AgentEditBody(
     onRemoveQuestion: (Int) -> Unit,
     onOpenModelPicker: () -> Unit,
     onModelClear: () -> Unit,
+    onUploadAvatar: (android.net.Uri) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = MaterialTheme.spacing
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+    ) { uri -> if (uri != null) onUploadAvatar(uri) }
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()),
     ) {
         SectionTitle(text = stringResource(R.string.agents_edit_section_identity))
+        var showAvatarPicker by remember { mutableStateOf(false) }
+        LaunchedEffect(state.avatar, state.uploading) {
+            if (!state.uploading && state.avatar.startsWith("http")) {
+                showAvatarPicker = false
+            }
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = spacing.l),
+                .clickable { showAvatarPicker = true }
+                .padding(horizontal = spacing.l, vertical = spacing.s),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.m),
         ) {
@@ -228,13 +251,33 @@ private fun AgentEditBody(
                 avatarUrl = state.avatar.takeIf { it.isNotBlank() },
                 size = 56.dp,
             )
-            AnTextField(
-                value = state.avatar,
-                onValueChange = onAvatarChange,
-                label = stringResource(R.string.agents_edit_avatar_label),
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(stringResource(R.string.agents_edit_avatar_hint)) },
-                singleLine = true,
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.agents_edit_avatar_label),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.agents_avatar_tap_to_change),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (showAvatarPicker) {
+            AvatarPickerSheet(
+                current = state.avatar,
+                uploading = state.uploading,
+                onPick = {
+                    onAvatarChange(it)
+                    showAvatarPicker = false
+                },
+                onUploadClick = { imagePicker.launch("image/*") },
+                onDismiss = { if (!state.uploading) showAvatarPicker = false },
             )
         }
         Column(

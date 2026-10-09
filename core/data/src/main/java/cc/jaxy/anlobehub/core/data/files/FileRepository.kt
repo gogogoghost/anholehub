@@ -89,16 +89,17 @@ class FileRepositoryImpl @Inject constructor(
             put("size", bytes.size)
             put("url", pathname)
         }
-        return trpc.mutate(baseUrl, "file.createFile", input) { it.toUploadedFile(pathname) }
+        return trpc.mutate(baseUrl, "file.createFile", input) { it.toUploadedFile(pathname) }.also {
+            }
     }
 
     private suspend fun checkFileHash(baseUrl: String, hash: String): AnResult<String?> {
         val input = buildJsonObject { put("hash", hash) }
-        return trpc.query(baseUrl, "file.checkFileHash", input) { el ->
-            val obj = el as? JsonObject ?: return@query null
+        return trpc.mutate(baseUrl, "file.checkFileHash", input) { el ->
+            val obj = el as? JsonObject ?: return@mutate null
             val isExist = (obj["isExist"] as? JsonPrimitive)?.contentOrNull
                 ?.toBooleanStrictOrNull() ?: false
-            if (!isExist) return@query null
+            if (!isExist) return@mutate null
             (obj["url"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
         }
     }

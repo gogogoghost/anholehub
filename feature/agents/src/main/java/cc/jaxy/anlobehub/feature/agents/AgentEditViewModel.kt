@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import cc.jaxy.anlobehub.core.common.result.AnResult
 import cc.jaxy.anlobehub.core.data.agent.AgentRepository
 import cc.jaxy.anlobehub.core.data.chat.AIModel
+import cc.jaxy.anlobehub.core.data.files.FileRepository
 import cc.jaxy.anlobehub.core.data.session.ServerStore
 import cc.jaxy.anlobehub.core.designsystem.text.UiText
 import cc.jaxy.anlobehub.core.designsystem.text.toUiText
@@ -27,6 +28,7 @@ import kotlinx.serialization.json.buildJsonArray
 class AgentEditViewModel @Inject constructor(
     private val serverStore: ServerStore,
     private val agentRepository: AgentRepository,
+    private val fileRepository: FileRepository,
 ) : ViewModel() {
 
     data class UiState(
@@ -43,6 +45,7 @@ class AgentEditViewModel @Inject constructor(
         val titleError: Boolean = false,
         val loading: Boolean = false,
         val saving: Boolean = false,
+        val uploading: Boolean = false,
         val deleting: Boolean = false,
         val saved: Boolean = false,
         val createdId: String? = null,
@@ -246,6 +249,46 @@ class AgentEditViewModel @Inject constructor(
                 is AnResult.Ok -> _uiState.value = _uiState.value.copy(deleting = false, deleted = true)
                 is AnResult.Err -> _uiState.value = _uiState.value.copy(
                     deleting = false,
+                    error = result.error.toUiText(),
+                )
+            }
+        }
+    }
+
+    /** Upload a prepared avatar image; the returned URL becomes the avatar. */
+    fun uploadAvatar(bytes: ByteArray, mime: String) {
+        if (_uiState.value.uploading) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(uploading = true, error = null)
+            val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
+            if (baseUrl.isNullOrBlank()) {
+                _uiState.value = _uiState.value.copy(
+                    uploading = false,
+                    error = UiText.Res(R.string.agents_no_server),
+                )
+                return@launch
+            }
+            when (
+                val result = fileRepository.uploadFile(
+                    baseUrl = baseUrl,
+                    name = "avatar.webp",
+                    mime = mime,
+                    bytes = bytes,
+                )
+            ) {
+                is AnResult.Ok -> {
+                    val url = result.value.url
+                    _uiState.value = if (url.isNullOrBlank()) {
+                        _uiState.value.copy(
+                            uploading = false,
+                            error = UiText.Res(R.string.agents_avatar_upload_failed),
+                        )
+                    } else {
+                        _uiState.value.copy(uploading = false, avatar = url, saved = false)
+                    }
+                }
+                is AnResult.Err -> _uiState.value = _uiState.value.copy(
+                    uploading = false,
                     error = result.error.toUiText(),
                 )
             }

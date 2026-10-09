@@ -48,4 +48,13 @@
     <string name="agents_edit_opening_message_label">开场白</string>
     <string name="agents_edit_opening_question_label">开场问题 %1$d</string>
     <string name="agents_edit_add_question">添加问题</string>
+
+    <string name="agents_avatar_pick_title">选择头像</string>
+    <string name="agents_avatar_tap_to_change">点击更换</string>
+    <string name="agents_avatar_custom_url">使用图片链接</string>
+    <string name="agents_avatar_use_url">使用该链接</string>
+
+    <string name="agents_avatar_upload">上传图片</string>
+    <string name="agents_avatar_uploading">上传中…</string>
+    <string name="agents_avatar_upload_failed">上传失败</string>
 </resources>
