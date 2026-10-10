@@ -56,8 +56,11 @@ class ChatViewModel @Inject constructor(
         val messages: List<ChatMessage> = emptyList(),
         val streaming: Boolean = false,
         val streamingText: String = "",
+        val streamingReasoning: String = "",
+        val streamingReasoningSecs: Double? = null,
         val error: UiText? = null,
         val topics: List<ChatTopic> = emptyList(),
+        val topicsLoading: Boolean = false,
         val activeTopicId: String? = null,
         val models: List<AIModel> = emptyList(),
         val activeModel: AIModel? = null,
@@ -120,11 +123,19 @@ class ChatViewModel @Inject constructor(
 
     /** Lazily loads topic history (called when the history panel opens). */
     fun loadTopics() {
+        if (_uiState.value.topicsLoading) return
         viewModelScope.launch {
             val baseUrl = currentBaseUrl() ?: return@launch
+            _uiState.value = _uiState.value.copy(topicsLoading = true)
             when (val result = topicRepository.listTopics(baseUrl, agentId = effectiveAgentId())) {
-                is AnResult.Ok -> _uiState.value = _uiState.value.copy(topics = result.value)
-                is AnResult.Err -> _uiState.value = _uiState.value.copy(error = result.error.toUiText())
+                is AnResult.Ok -> _uiState.value = _uiState.value.copy(
+                    topics = result.value,
+                    topicsLoading = false,
+                )
+                is AnResult.Err -> _uiState.value = _uiState.value.copy(
+                    topicsLoading = false,
+                    error = result.error.toUiText(),
+                )
             }
         }
     }
@@ -189,6 +200,7 @@ class ChatViewModel @Inject constructor(
             viewModelScope.launch { runCatching { agentApi.interruptTask(baseUrl, operationId) } }
         }
         val acc = snapshot.streamingText
+        val accReasoning = snapshot.streamingReasoning.trim().takeIf { it.isNotBlank() }
         _uiState.value =
             if (acc.isNotBlank()) {
                 snapshot.copy(
@@ -196,13 +208,15 @@ class ChatViewModel @Inject constructor(
                         id = pendingAssistantId ?: "asst-$operationId",
                         role = "assistant",
                         content = acc,
+                        reasoning = accReasoning,
                         createdAt = System.currentTimeMillis(),
                     ),
                     streaming = false,
                     streamingText = "",
+                    streamingReasoning = "", streamingReasoningSecs = null,
                 )
             } else {
-                snapshot.copy(streaming = false, streamingText = "")
+                snapshot.copy(streaming = false, streamingText = "", streamingReasoning = "", streamingReasoningSecs = null)
             }
         activeOperationId = null
     }
@@ -255,6 +269,7 @@ class ChatViewModel @Inject constructor(
             messages = _uiState.value.messages + userMessage,
             streaming = true,
             streamingText = "",
+            streamingReasoning = "", streamingReasoningSecs = null,
             error = null,
             pendingFiles = emptyList(),
         )
@@ -272,14 +287,16 @@ class ChatViewModel @Inject constructor(
             provider = snapshot.activeModel?.providerId?.takeIf { it.isNotBlank() },
         )
         if (exec is AnResult.Err) {
-            _uiState.value = _uiState.value.copy(streaming = false, streamingText = "", error = exec.error.toUiText())
+            _uiState.value = _uiState.value.copy(streaming = false, streamingText = "",
+                            streamingReasoning = "", streamingReasoningSecs = null, error = exec.error.toUiText())
             return
         }
         val execOk = (exec as AnResult.Ok).value
         val operationId = execOk.operationId?.takeIf { it.isNotBlank() }
         val token = execOk.token?.takeIf { it.isNotBlank() }
         if (operationId == null || token == null) {
-            _uiState.value = _uiState.value.copy(streaming = false, streamingText = "", error = UiText.Res(R.string.chat_no_stream_task))
+            _uiState.value = _uiState.value.copy(streaming = false, streamingText = "",
+                            streamingReasoning = "", streamingReasoningSecs = null, error = UiText.Res(R.string.chat_no_stream_task))
             return
         }
         activeOperationId = operationId
@@ -291,18 +308,44 @@ class ChatViewModel @Inject constructor(
             when (val cfg = agentApi.globalConfig(baseUrl)) {
                 is AnResult.Ok -> cfg.value
                 is AnResult.Err -> {
-                    _uiState.value = _uiState.value.copy(streaming = false, streamingText = "", error = UiText.Res(R.string.chat_gateway_missing))
+                    _uiState.value = _uiState.value.copy(streaming = false, streamingText = "",
+                            streamingReasoning = "", streamingReasoningSecs = null, error = UiText.Res(R.string.chat_gateway_missing))
                     return
                 }
             }
 
         val buffer = StringBuilder()
+        val reasoningBuffer = StringBuilder()
+        var lastEmit = 0L
+        var reasoningStart = 0L
+        var reasoningSecs: Double? = null
+        fun emit(force: Boolean = false) {
+            val now = System.currentTimeMillis()
+            // Throttle markdown re-parse to ~12fps; force on completion.
+            if (!force && now - lastEmit < 80) return
+            lastEmit = now
+            _uiState.value = _uiState.value.copy(
+                streamingText = buffer.toString(),
+                streamingReasoning = reasoningBuffer.toString(),
+                streamingReasoningSecs = reasoningSecs,
+            )
+        }
         try {
             gatewaySocket.stream(endpoint, token, operationId).collect { event ->
                 when (event) {
                     is GatewayEvent.StreamChunk -> {
-                        buffer.append(event.textDelta)
-                        _uiState.value = _uiState.value.copy(streamingText = buffer.toString())
+                        if (event.reasoningDelta?.isNotEmpty() == true) {
+                            if (reasoningStart == 0L) reasoningStart = System.currentTimeMillis()
+                            reasoningBuffer.append(event.reasoningDelta)
+                        }
+                        if (event.textDelta.isNotEmpty()) {
+                            // First answer token freezes the thinking clock.
+                            if (reasoningStart != 0L && reasoningSecs == null) {
+                                reasoningSecs = (System.currentTimeMillis() - reasoningStart) / 1000.0
+                            }
+                            buffer.append(event.textDelta)
+                        }
+                        emit()
                     }
                     is GatewayEvent.StreamStarted -> {
                         if (!event.assistantMessageId.isNullOrBlank()) {
@@ -311,16 +354,23 @@ class ChatViewModel @Inject constructor(
                     }
                     is GatewayEvent.StreamEnded -> Unit
                     is GatewayEvent.RunEnded -> {
+                        if (reasoningStart != 0L && reasoningSecs == null) {
+                            reasoningSecs = (System.currentTimeMillis() - reasoningStart) / 1000.0
+                        }
+                        emit(force = true)
                         val assistant = ChatMessage(
                             id = pendingAssistantId ?: "asst-$operationId",
                             role = "assistant",
-                            content = buffer.toString(),
+                            content = buffer.toString().trim(),
+                            reasoning = reasoningBuffer.toString().trim().takeIf { it.isNotBlank() },
+                            reasoningDuration = reasoningSecs,
                             createdAt = System.currentTimeMillis(),
                         )
                         _uiState.value = _uiState.value.copy(
                             messages = _uiState.value.messages + assistant,
                             streaming = false,
                             streamingText = "",
+                            streamingReasoning = "", streamingReasoningSecs = null,
                         )
                         activeOperationId = null
                     }
@@ -332,7 +382,8 @@ class ChatViewModel @Inject constructor(
                                 UiText.rawOrNull(event.message)
                                     ?: UiText.Res(R.string.chat_stream_interrupted)
                             }
-                        _uiState.value = _uiState.value.copy(streaming = false, streamingText = "", error = msg)
+                        _uiState.value = _uiState.value.copy(streaming = false, streamingText = "",
+                            streamingReasoning = "", streamingReasoningSecs = null, error = msg)
                         activeOperationId = null
                     }
                     is GatewayEvent.Unknown -> Unit
@@ -344,6 +395,7 @@ class ChatViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(
                 streaming = false,
                 streamingText = "",
+                streamingReasoning = "", streamingReasoningSecs = null,
                 error = UiText.rawOrNull(t.message)
                     ?: UiText.Res(R.string.chat_stream_interrupted),
             )

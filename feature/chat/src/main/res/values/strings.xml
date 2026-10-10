@@ -23,4 +23,12 @@
     <string name="chat_session_expired_reenter">Session expired. Please re-enter the conversation.</string>
     <string name="chat_stream_interrupted">Streaming was interrupted. Please retry.</string>
     <string name="chat_agent_history">Topic history</string>
+
+    <string name="chat_thinking">Thinking…</string>
+    <string name="chat_thought_done">Thought process</string>
+    <string name="chat_action_copy">Copy</string>
+
+    <string name="chat_thought_secs">Thought for %.1fs</string>
+
+    <string name="chat_steps_ran">Ran %1$d steps</string>
 </resources>

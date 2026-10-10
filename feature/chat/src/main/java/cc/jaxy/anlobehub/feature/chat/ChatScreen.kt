@@ -81,7 +81,7 @@ import cc.jaxy.anlobehub.core.designsystem.component.EmptyBox
 import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
 import cc.jaxy.anlobehub.core.designsystem.component.MarkdownText
 import cc.jaxy.anlobehub.core.designsystem.component.RefreshBox
-import cc.jaxy.anlobehub.core.designsystem.R as DsR
+import cc.jaxy.anlobehub.core.designsystem.component.SkeletonList
 import cc.jaxy.anlobehub.core.designsystem.component.relativeTimeText
 import cc.jaxy.anlobehub.core.designsystem.text.resolve
 import cc.jaxy.anlobehub.core.designsystem.theme.AnlobehubTheme
@@ -124,7 +124,7 @@ private fun ChatScreenWired(
     }
 
     val totalItems = uiState.messages.size + if (uiState.streaming) 1 else 0
-    LaunchedEffect(totalItems, uiState.streamingText) {
+    LaunchedEffect(totalItems, uiState.streamingText, uiState.streamingReasoning) {
         if (totalItems > 0) {
             runCatching { listState.scrollToItem(totalItems - 1) }
         }
@@ -164,7 +164,10 @@ private fun ChatScreenWired(
         messages = uiState.messages,
         streaming = uiState.streaming,
         streamingText = uiState.streamingText,
+        streamingReasoning = uiState.streamingReasoning,
+        streamingReasoningSecs = uiState.streamingReasoningSecs,
         topics = uiState.topics,
+        topicsLoading = uiState.topicsLoading,
         activeTopicId = uiState.activeTopicId,
         models = uiState.models,
         activeModel = uiState.activeModel,
@@ -190,7 +193,10 @@ private fun ChatContent(
     messages: List<ChatMessage>,
     streaming: Boolean,
     streamingText: String,
+    streamingReasoning: String = "",
+    streamingReasoningSecs: Double? = null,
     topics: List<ChatTopic>,
+    topicsLoading: Boolean = false,
     activeTopicId: String?,
     models: List<AIModel>,
     activeModel: AIModel?,
@@ -374,6 +380,7 @@ private fun ChatContent(
                         description = stringResource(R.string.chat_empty_desc),
                     )
                 } else {
+                    val turns = remember(messages) { messages.toTurns() }
                     LazyColumn(
                         state = listState,
                         modifier = Modifier
@@ -382,17 +389,41 @@ private fun ChatContent(
                         verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
                     ) {
                         items(
-                            messages,
-                            key = { it.id.ifBlank { it.hashCode().toString() } },
-                            contentType = { if (it.role == "user") "user" else "assistant" },
-                        ) { message ->
-                            MessageRow(message = message)
+                            turns,
+                            key = {
+                                when (it) {
+                                    is ChatTurn.User -> it.message.id.ifBlank { it.hashCode().toString() }
+                                    is ChatTurn.AssistantGroup ->
+                                        (it.answer?.id ?: it.steps.firstOrNull()?.id).orEmpty()
+                                            .ifBlank { it.hashCode().toString() }
+                                }
+                            },
+                            contentType = { if (it is ChatTurn.User) "user" else "group" },
+                        ) { turn ->
+                            when (turn) {
+                                is ChatTurn.User -> MessageRow(message = turn.message)
+                                is ChatTurn.AssistantGroup -> {
+                                    if (turn.steps.isNotEmpty()) {
+                                        StepsRow(steps = turn.steps)
+                                    }
+                                    turn.answer?.let { answer ->
+                                        AssistantMessageRow(
+                                            message = answer,
+                                            agentName = title,
+                                        )
+                                    }
+                                }
+                            }
                         }
                         if (streaming) {
                             item(key = "streaming", contentType = "streaming") {
-                                StreamingRow(
-                                    text = streamingText,
-                                    modelName = activeModel?.displayName ?: activeModel?.id,
+                                AssistantMessageRow(
+                                    message = ChatMessage(role = "assistant"),
+                                    agentName = title,
+                                    isStreaming = true,
+                                    streamingText = streamingText,
+                                    streamingReasoning = streamingReasoning,
+                                    streamingReasoningSecs = streamingReasoningSecs,
                                 )
                             }
                         }
@@ -415,7 +446,11 @@ private fun ChatContent(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(bottom = MaterialTheme.spacing.s),
                 )
-                if (topics.isEmpty()) {
+                if (topicsLoading && topics.isEmpty()) {
+                    SkeletonList(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = MaterialTheme.spacing.s),
+                    )
+                } else if (topics.isEmpty()) {
                     Text(
                         stringResource(R.string.chat_topic_empty),
                         style = MaterialTheme.typography.bodySmall,
@@ -471,95 +506,26 @@ private fun ChatContent(
 
 @Composable
 private fun MessageRow(message: ChatMessage) {
-    val isUser = message.role == "user"
-    if (isUser) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            Surface(
-                tonalElevation = 2.dp,
-                shape = RoundedCornerShape(
-                    topStart = 16.dp,
-                    topEnd = 16.dp,
-                    bottomStart = 16.dp,
-                    bottomEnd = 4.dp,
-                ),
-                color = MaterialTheme.colorScheme.primaryContainer,
-            ) {
-                Column(modifier = Modifier.padding(MaterialTheme.spacing.l)) {
-                    Text(
-                        text = message.content.ifBlank { stringResource(R.string.chat_empty_message) },
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Timestamp(createdAt = message.createdAt)
-                }
-            }
-        }
-    } else {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
-            verticalAlignment = Alignment.Top,
-        ) {
-            InitialAvatar(name = message.model?.takeIf { it.isNotBlank() } ?: "AI", size = 32.dp)
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Column(modifier = Modifier.padding(MaterialTheme.spacing.l)) {
-                    MarkdownText(markdown = message.content.ifBlank { stringResource(R.string.chat_empty_message) })
-                    if (!message.error.isNullOrBlank()) {
-                        Text(
-                            text = message.error!!,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(top = MaterialTheme.spacing.xs),
-                        )
-                    }
-                    Timestamp(createdAt = message.createdAt)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StreamingRow(text: String, modelName: String? = null) {
-    val alpha by rememberInfiniteTransition(label = "cursor").animateFloat(
-        initialValue = 1f,
-        targetValue = 0.2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "cursorAlpha",
-    )
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.s),
-        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.End,
     ) {
-        InitialAvatar(name = modelName?.takeIf { it.isNotBlank() } ?: "AI", size = 32.dp)
         Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 2.dp,
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = 16.dp,
+                bottomEnd = 4.dp,
+            ),
+            color = MaterialTheme.colorScheme.primaryContainer,
         ) {
             Column(modifier = Modifier.padding(MaterialTheme.spacing.l)) {
-                if (text.isBlank()) {
-                    Text(
-                        text = "▍",
-                        modifier = Modifier.alpha(alpha),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                } else {
-                    MarkdownText(markdown = text)
-                    Text(
-                        text = "▍",
-                        modifier = Modifier.alpha(alpha),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+                Text(
+                    text = message.content.ifBlank { stringResource(R.string.chat_empty_message) },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Timestamp(createdAt = message.createdAt)
             }
         }
     }

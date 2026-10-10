@@ -22,6 +22,10 @@ data class ChatMessage(
     val id: String = "",
     val role: String = "assistant",
     val content: String = "",
+    /** Deep-thinking trace (`reasoning.content`); renders as a collapsible card. */
+    val reasoning: String? = null,
+    /** Seconds the model spent reasoning (`reasoning.duration`), if reported. */
+    val reasoningDuration: Double? = null,
     val createdAt: Long? = null,
     val updatedAt: Long? = null,
     val model: String? = null,
@@ -83,6 +87,18 @@ private fun JsonObject.longOrNull(key: String): Long? {
     }
 }
 
+/** Drops leaked `<think>...</think>` blocks some providers echo into content. */
+private fun String.stripThinkTags(): String {
+    var out = this
+    while (true) {
+        val start = out.indexOf("<think>")
+        if (start < 0) break
+        val end = out.indexOf("</think>", start)
+        out = if (end < 0) out.substring(0, start) else out.removeRange(start, end + 8)
+    }
+    return out.trim()
+}
+
 fun JsonElement.toChatMessage(): ChatMessage {
     val obj = this as? JsonObject ?: return ChatMessage()
     val errorRaw = obj["error"]
@@ -91,10 +107,20 @@ fun JsonElement.toChatMessage(): ChatMessage {
         is JsonPrimitive -> errorRaw.contentOrNull
         else -> errorRaw.toString().takeIf { it.isNotBlank() }
     }
+    val reasoningRaw = obj["reasoning"]
+    val reasoning = when (reasoningRaw) {
+        is JsonObject -> reasoningRaw.stringOrNull("content")?.takeIf { it.isNotBlank() }
+        is JsonPrimitive -> reasoningRaw.contentOrNull?.takeIf { it.isNotBlank() }
+        else -> null
+    }
+    val reasoningDuration = (reasoningRaw as? JsonObject)
+        ?.get("duration")?.let { (it as? JsonPrimitive)?.contentOrNull?.toDoubleOrNull() }
     return ChatMessage(
         id = obj.stringOrNull("id") ?: "",
         role = obj.stringOrNull("role") ?: "assistant",
-        content = contentToText(obj["content"]),
+        content = contentToText(obj["content"]).stripThinkTags(),
+        reasoning = reasoning,
+        reasoningDuration = reasoningDuration,
         createdAt = obj.longOrNull("createdAt"),
         updatedAt = obj.longOrNull("updatedAt"),
         model = obj.stringOrNull("model"),
@@ -135,7 +161,7 @@ fun JsonElement.extractId(): String? {
 
 fun JsonElement.asMessageList(): List<ChatMessage> {
     return try {
-        when (this) {
+        val raw = when (this) {
             is JsonArray -> map { it.toChatMessage() }
             is JsonObject -> {
                 val arr = keys.firstNotNullOfOrNull { k ->
@@ -147,7 +173,13 @@ fun JsonElement.asMessageList(): List<ChatMessage> {
                 } ?: return emptyList()
                 arr.map { it.toChatMessage() }
             }
-            else -> emptyList()
+            else -> return emptyList()
+        }
+        // Mirror web conversation filtering: system rows never render;
+        // fully empty rows (no content/reasoning/error) are protocol noise.
+        raw.filter { m ->
+            m.role != "system" &&
+                (m.content.isNotBlank() || !m.reasoning.isNullOrBlank() || !m.error.isNullOrBlank())
         }
     } catch (_: Exception) {
         emptyList()

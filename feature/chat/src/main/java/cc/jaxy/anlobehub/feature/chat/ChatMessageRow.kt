@@ -1,0 +1,452 @@
+package cc.jaxy.anlobehub.feature.chat
+
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import android.content.ClipData
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import cc.jaxy.anlobehub.core.data.chat.ChatMessage
+import cc.jaxy.anlobehub.core.designsystem.component.InitialAvatar
+import cc.jaxy.anlobehub.core.designsystem.component.MarkdownText
+import cc.jaxy.anlobehub.core.designsystem.component.relativeTimeText
+import cc.jaxy.anlobehub.core.designsystem.theme.spacing
+
+/**
+ * Assistant message: borderless, mirroring web mobile. Thinking trace and
+ * tool calls fold into collapsible cards; body markdown renders directly.
+ */
+@Composable
+fun AssistantMessageRow(
+    message: ChatMessage,
+    agentName: String?,
+    isStreaming: Boolean = false,
+    streamingText: String? = null,
+    streamingReasoning: String? = null,
+    streamingReasoningSecs: Double? = null,
+    modifier: Modifier = Modifier,
+) {
+    val spacing = MaterialTheme.spacing
+    val body = streamingText ?: message.content
+    val reasoning = streamingReasoning ?: message.reasoning
+    val reasoningSecs = streamingReasoningSecs ?: message.reasoningDuration
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = spacing.s)
+            .animateContentSize(),
+        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.s),
+        ) {
+            InitialAvatar(
+                name = agentName?.takeIf { it.isNotBlank() } ?: "AI",
+                size = 28.dp,
+            )
+            Text(
+                text = agentName?.takeIf { it.isNotBlank() }
+                    ?: message.model?.takeIf { it.isNotBlank() }
+                    ?: "AI",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val timeLabel = relativeTimeText(message.createdAt)
+            if (timeLabel.isNotBlank()) {
+                Text(
+                    text = timeLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (!reasoning.isNullOrBlank() || (isStreaming && body.isBlank())) {
+            ThinkingCard(
+                content = reasoning.orEmpty(),
+                thinking = isStreaming && body.isBlank(),
+                durationSecs = reasoningSecs,
+            )
+        }
+        if (body.isNotBlank()) {
+            MarkdownText(markdown = body, streaming = isStreaming)
+            if (isStreaming) StreamingCursor()
+            val citations = remember(body) { parseCitations(body) }
+            if (citations.isNotEmpty() && !isStreaming) {
+                CitationRow(citations = citations)
+            }
+        } else if (!isStreaming) {
+            Text(
+                text = stringResource(R.string.chat_empty_message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else if (reasoning.isNullOrBlank()) {
+            // Reasoning-only phase with nothing yet: show cursor alone.
+            StreamingCursor()
+        }
+        if (!message.error.isNullOrBlank()) {
+            Text(
+                text = message.error!!,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (!isStreaming && body.isNotBlank()) {
+            MessageActions(text = body)
+        }
+    }
+}
+
+/** Collapsible deep-thinking trace. Collapsed by default (web parity). */
+@Composable
+private fun ThinkingCard(
+    content: String,
+    thinking: Boolean,
+    durationSecs: Double? = null,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val spacing = MaterialTheme.spacing
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = spacing.m, vertical = spacing.s)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.s),
+            ) {
+                if (thinking) {
+                    ThinkingDots()
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Psychology,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Text(
+                    text = if (thinking) {
+                        stringResource(R.string.chat_thinking)
+                    } else if (durationSecs != null) {
+                        stringResource(R.string.chat_thought_secs, durationSecs)
+                    } else {
+                        stringResource(R.string.chat_thought_done)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (thinking) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            if (expanded && content.isNotBlank()) {
+                MarkdownText(
+                    markdown = content,
+                    modifier = Modifier.padding(top = spacing.s),
+                )
+            }
+        }
+    }
+}
+
+/** Folded tool-call record (memories/search/RAG dumps stay out of the flow). */
+@Composable
+fun ToolMessageRow(
+    message: ChatMessage,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val spacing = MaterialTheme.spacing
+    val summary = toolSummary(message.content)
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = spacing.m, vertical = spacing.s)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.s),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Build,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            if (expanded) {
+                Text(
+                    text = message.content,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = spacing.s),
+                )
+            }
+        }
+    }
+}
+
+private fun toolSummary(content: String): String {
+    val firstTag = Regex("<(\\w+)").find(content)?.groupValues?.getOrNull(1)
+    return when {
+        firstTag == null -> content.lineSequence().firstOrNull()?.take(60) ?: "Tool"
+        else -> "Tool: $firstTag"
+    }
+}
+
+@Composable
+private fun ThinkingDots(modifier: Modifier = Modifier) {
+    val alpha by rememberInfiniteTransition(label = "thinking").animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "thinkingAlpha",
+    )
+    Text(
+        text = "● ● ●",
+        modifier = modifier.alpha(alpha),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+    )
+}
+
+@Composable
+private fun StreamingCursor(modifier: Modifier = Modifier) {
+    val alpha by rememberInfiniteTransition(label = "cursor").animateFloat(
+        initialValue = 1f,
+        targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "cursorAlpha",
+    )
+    Text(
+        text = "▍",
+        modifier = modifier.alpha(alpha),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.primary,
+    )
+}
+
+@Composable
+private fun MessageActions(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    val clipboard = LocalClipboard.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+    ) {
+        IconButton(
+            onClick = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("message", text))) } },
+            modifier = Modifier.size(32.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.ContentCopy,
+                contentDescription = stringResource(R.string.chat_action_copy),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Collapsed execution trace ("Ran N steps"), mirroring web. Tapping expands
+ * the prelude + tool rows inline.
+ */
+@Composable
+fun StepsRow(
+    steps: List<ChatMessage>,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val spacing = MaterialTheme.spacing
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.s),
+        ) {
+            Text(
+                text = stringResource(R.string.chat_steps_ran, steps.size),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (expanded) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                modifier = Modifier.padding(top = spacing.xs),
+            ) {
+                steps.forEach { step ->
+                    when (step.role) {
+                        "tool", "function" -> ToolMessageRow(message = step)
+                        else -> Text(
+                            text = step.content,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Parsed web citation from `[^n]: [title](url)` definitions. */
+data class ChatCitation(val index: String, val title: String, val url: String) {
+    val host: String get() = runCatching {
+        android.net.Uri.parse(url).host?.removePrefix("www.") ?: url
+    }.getOrDefault(url)
+}
+
+private val FOOTNOTE_DEF = Regex("""(?m)^\[\^(\d+)\]:\s*(.+)$""")
+private val MD_LINK = Regex("""\[([^\]]*)\]\((https?://[^)]+)\)""")
+
+/** Extracts citations; URLs double as the inline-link map. */
+fun parseCitations(markdown: String): List<ChatCitation> {
+    if (!markdown.contains("[^")) return emptyList()
+    return FOOTNOTE_DEF.findAll(markdown).mapNotNull { match ->
+        val raw = match.groupValues[2].trim()
+        val link = MD_LINK.find(raw)
+        val url = link?.groupValues?.getOrNull(2)
+            ?: raw.split(Regex("""\s+""")).firstOrNull().orEmpty()
+        if (!url.startsWith("http")) return@mapNotNull null
+        val title = link?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() } ?: url
+        ChatCitation(index = match.groupValues[1], title = title, url = url)
+    }.toList()
+}
+
+/**
+ * Horizontal citation cards under the message, mirroring web search cards:
+ * title + host, tapping opens the URL.
+ */
+@Composable
+fun CitationRow(
+    citations: List<ChatCitation>,
+    modifier: Modifier = Modifier,
+) {
+    if (citations.isEmpty()) return
+    val spacing = MaterialTheme.spacing
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    androidx.compose.foundation.lazy.LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(spacing.s),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        items(citations.size, key = { citations[it].index }) { i ->
+            val citation = citations[i]
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .clickable {
+                        runCatching { uriHandler.openUri(citation.url) }
+                    },
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = spacing.m, vertical = spacing.s),
+                ) {
+                    Text(
+                        text = citation.title,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(0.6f),
+                    )
+                    Text(
+                        text = citation.host,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}

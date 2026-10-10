@@ -22,4 +22,12 @@
     <string name="chat_session_expired_reenter">登录已过期，请重新进入会话</string>
     <string name="chat_stream_interrupted">流式输出中断，请重试</string>
     <string name="chat_agent_history">话题历史</string>
+
+    <string name="chat_thinking">思考中…</string>
+    <string name="chat_thought_done">思考过程</string>
+    <string name="chat_action_copy">复制</string>
+
+    <string name="chat_thought_secs">已深度思考 %.1f 秒</string>
+
+    <string name="chat_steps_ran">执行了 %1$d 个步骤</string>
 </resources>
