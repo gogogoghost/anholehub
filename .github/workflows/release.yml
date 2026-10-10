@@ -26,9 +26,13 @@ jobs:
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.ANLOBEHUB_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANLOBEHUB_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANLOBEHUB_KEY_ALIAS }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
-
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \n\r\t' | base64 -d > "$RUNNER_TEMP/release.keystore"
+          # Fail fast: verify password + alias before the 5-min build.
+          keytool -list -keystore "$RUNNER_TEMP/release.keystore" \
+            -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null
       - name: Derive version from tag
         id: version
         run: |
