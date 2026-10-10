@@ -36,7 +36,7 @@ android {
                 storeFile = file(ksPath)
                 storePassword = ksPass
                 keyAlias = alias
-                keyPassword = keyPass ?: ksPass
+                keyPassword = keyPass?.takeIf { it.isNotBlank() } ?: ksPass
             }
         }
     }
