@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -20,9 +21,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
+import coil3.size.Dimension
+import coil3.size.Size
+import coil3.size.SizeResolver
 import cc.jaxy.anlobehub.core.designsystem.theme.AnlobehubTheme
 
-// 头像底色/前景色：5 种 tonal 预设，按名字 hash 循环，保证同一名字颜色稳定
+/** Avatar decode target: xxxhdpi 56dp ≈ 224px, rounded up for crispness. */
+private const val OUTPUT_PX = 256
 @Composable
 private fun avatarColors(name: String?): Pair<Color, Color> {
     val scheme = MaterialTheme.colorScheme
@@ -75,7 +82,13 @@ fun InitialAvatar(
         if (glyph == null && trimmed.isImageUrl()) {
             // 圆形裁剪 + 裁剪填充；占位/失败时 AsyncImage 无内容，透出底层首字即回退
             AsyncImage(
-                model = trimmed,
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(trimmed)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .diskCacheKey(trimmed)
+                    .size(SizeResolver(Size(Dimension(OUTPUT_PX), Dimension(OUTPUT_PX))))
+                    .build(),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize().clip(CircleShape),
                 contentScale = ContentScale.Crop,

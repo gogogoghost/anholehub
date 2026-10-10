@@ -7,7 +7,10 @@ import cc.jaxy.anlobehub.core.common.preferences.AppLanguage
 import cc.jaxy.anlobehub.core.data.preferences.UiPreferencesStore
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import okio.Path.Companion.toOkioPath
 import dagger.hilt.android.HiltAndroidApp
 import java.lang.ref.WeakReference
 import javax.inject.Inject
@@ -38,6 +41,19 @@ class AnlobehubApp : Application() {
         SingletonImageLoader.setSafe {
             ImageLoader.Builder(this)
                 .components { add(OkHttpNetworkFetcherFactory(okHttpClient)) }
+                // Avatars/logos are tiny and URL-addressed (new URL = new
+                // image), so cache aggressively: 25% RAM + 100MB disk.
+                .memoryCache {
+                    MemoryCache.Builder()
+                        .maxSizePercent(this, 0.25)
+                        .build()
+                }
+                .diskCache {
+                    DiskCache.Builder()
+                        .directory(cacheDir.resolve("coil").toOkioPath())
+                        .maxSizeBytes(100L * 1024 * 1024)
+                        .build()
+                }
                 .build()
         }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
