@@ -31,15 +31,21 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANLOBEHUB_KEY_PASSWORD }}
         run: |
           printf '%s' "$KEYSTORE_BASE64" | tr -d ' \n\r\t' | base64 -d > "$RUNNER_TEMP/release.keystore"
-          # Fail fast: verify store password + alias + key password (10s, not 5min).
-          # Empty KEY_PASSWORD falls back to the store password (PKCS12-friendly),
-          # mirroring app/build.gradle.kts.
-          EFFECTIVE_KEY_PASS="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
-          keytool -list -keystore "$RUNNER_TEMP/release.keystore" \
-            -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null
-          keytool -keypasswd -keystore "$RUNNER_TEMP/release.keystore" \
-            -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
-            -keypass "$EFFECTIVE_KEY_PASS" -new "$EFFECTIVE_KEY_PASS" > /dev/null
+          # Fail fast (10s, not 5min). PKCS12 forces keypass == storepass, so a
+          # distinct KEY_PASSWORD can only break the build -> reject it here.
+          TYPE=$(keytool -list -keystore "$RUNNER_TEMP/release.keystore" \
+            -storepass "$KEYSTORE_PASSWORD" 2>/dev/null | grep -i "Keystore type" | awk '{print $3}')
+          echo "Keystore type: $TYPE"
+          if [ "$TYPE" = "PKCS12" ] && [ -n "$KEY_PASSWORD" ] && [ "$KEY_PASSWORD" != "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::PKCS12 requires key password == store password; delete ANLOBEHUB_KEY_PASSWORD or make them match."
+            exit 1
+          fi
+          if [ "$TYPE" = "JKS" ] || [ "$TYPE" = "JCEKS" ]; then
+            EFFECTIVE_KEY_PASS="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            keytool -keypasswd -keystore "$RUNNER_TEMP/release.keystore" \
+              -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
+              -keypass "$EFFECTIVE_KEY_PASS" -new "$EFFECTIVE_KEY_PASS" > /dev/null
+          fi
       - name: Derive version from tag
         id: version
         run: |
