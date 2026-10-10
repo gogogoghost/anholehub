@@ -7,5 +7,6 @@ sealed interface AuthState {
         val userId: String,
         val email: String?,
         val name: String?,
+        val avatar: String? = null,
     ) : AuthState
 }

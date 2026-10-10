@@ -51,13 +51,20 @@ class SettingsViewModel @Inject constructor(
     val switchServerEvent: SharedFlow<Unit> = _switchServerEvent.asSharedFlow()
 
     init {
-        // Show instantly from cached auth state; refresh profile silently.
+        // Show instantly from caches (profile cache wins: it carries the
+        // avatar URL, so Coil hits memory and the avatar shows in 0 frames).
         viewModelScope.launch {
             val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull()
             val cached = runCatching { authRepository.authState.first() }.getOrNull()
-            val cachedProfile = (cached as? AuthState.SignedIn)?.let {
-                UserProfile(userId = it.userId, email = it.email, fullName = it.name)
-            }
+            val cachedProfile = userRepository.cachedProfile()
+                ?: (cached as? AuthState.SignedIn)?.let {
+                    UserProfile(
+                        userId = it.userId,
+                        email = it.email,
+                        fullName = it.name,
+                        avatar = it.avatar,
+                    )
+                }
             _uiState.value = _uiState.value.copy(
                 baseUrl = baseUrl,
                 profile = cachedProfile,
@@ -120,6 +127,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val baseUrl = runCatching { serverStore.baseUrl.first() }.getOrNull().orEmpty()
             authRepository.signOut(baseUrl)
+            userRepository.clearCache()
             _signedOutEvent.emit(Unit)
         }
     }
@@ -127,6 +135,7 @@ class SettingsViewModel @Inject constructor(
     fun switchServer() {
         viewModelScope.launch {
             serverStore.clear()
+            userRepository.clearCache()
             _switchServerEvent.emit(Unit)
         }
     }

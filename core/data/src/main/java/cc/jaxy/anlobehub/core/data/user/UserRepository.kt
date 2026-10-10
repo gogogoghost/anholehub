@@ -21,6 +21,11 @@ data class UserProfile(
 
 interface UserRepository {
     suspend fun getUserState(baseUrl: String): AnResult<UserProfile>
+
+    /** Last known profile (memory cache); null until first success. */
+    fun cachedProfile(): UserProfile?
+
+    fun clearCache()
 }
 
 @Singleton
@@ -28,8 +33,19 @@ class UserRepositoryImpl @Inject constructor(
     private val trpc: TrpcClient,
 ) : UserRepository {
 
+    @Volatile
+    private var cache: UserProfile? = null
+
     override suspend fun getUserState(baseUrl: String): AnResult<UserProfile> =
-        trpc.query(baseUrl, "user.getUserState", null) { it.toUserProfile() }
+        trpc.query(baseUrl, "user.getUserState", null) { it.toUserProfile() }.also { result ->
+            if (result is AnResult.Ok) cache = result.value
+        }
+
+    override fun cachedProfile(): UserProfile? = cache
+
+    override fun clearCache() {
+        cache = null
+    }
 }
 
 /** 全宽容解析：缺字段即 null，未知字段忽略。 */

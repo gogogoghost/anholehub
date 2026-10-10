@@ -78,7 +78,7 @@ class AuthRepositoryImpl @Inject constructor(
         return if (userId.isNullOrBlank()) {
             AuthState.SignedOut
         } else {
-            AuthState.SignedIn(userId = userId, email = user?.email, name = user?.name)
+            AuthState.SignedIn(userId = userId, email = user?.email, name = user?.name, avatar = user?.image)
         }
     }
 
