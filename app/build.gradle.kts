@@ -14,9 +14,31 @@ android {
         applicationId = "cc.jaxy.anlobehub.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI overrides via -PversionCode/-PversionName from the git tag.
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "0.1.0"
         vectorDrawables { useSupportLibrary = true }
+    }
+
+    signingConfigs {
+        // Release key from env (CI secrets) or ~/.gradle/gradle.properties.
+        // Absent -> unsigned release build (still assembles for verification).
+        create("release") {
+            val ksPath = System.getenv("ANLOBEHUB_KEYSTORE_PATH")
+                ?: project.findProperty("anlobehub.keystore.path") as String?
+            val ksPass = System.getenv("ANLOBEHUB_KEYSTORE_PASSWORD")
+                ?: project.findProperty("anlobehub.keystore.password") as String?
+            val alias = System.getenv("ANLOBEHUB_KEY_ALIAS")
+                ?: project.findProperty("anlobehub.key.alias") as String?
+            val keyPass = System.getenv("ANLOBEHUB_KEY_PASSWORD")
+                ?: project.findProperty("anlobehub.key.password") as String?
+            if (!ksPath.isNullOrBlank() && !ksPass.isNullOrBlank() && !alias.isNullOrBlank()) {
+                storeFile = file(ksPath)
+                storePassword = ksPass
+                keyAlias = alias
+                keyPassword = keyPass ?: ksPass
+            }
+        }
     }
 
     buildTypes {
@@ -27,6 +49,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            val ksPath = System.getenv("ANLOBEHUB_KEYSTORE_PATH")
+                ?: project.findProperty("anlobehub.keystore.path") as String?
+            if (!ksPath.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
