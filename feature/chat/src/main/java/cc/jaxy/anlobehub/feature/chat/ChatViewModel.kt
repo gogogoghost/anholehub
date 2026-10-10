@@ -58,6 +58,8 @@ class ChatViewModel @Inject constructor(
         val streamingText: String = "",
         val streamingReasoning: String = "",
         val streamingReasoningSecs: Double? = null,
+        /** Sealed prelude/tool segments ahead of the live answer. */
+        val streamingSteps: List<StreamSegment> = emptyList(),
         val error: UiText? = null,
         val topics: List<ChatTopic> = emptyList(),
         val topicsLoading: Boolean = false,
@@ -70,6 +72,13 @@ class ChatViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    /** A sealed stream segment: prelude text or a tool call. */
+    data class StreamSegment(
+        val text: String = "",
+        val toolName: String? = null,
+        val toolDone: Boolean = true,
+    )
 
     private var streamJob: Job? = null
     private var activeBaseUrl: String? = null
@@ -243,7 +252,11 @@ class ChatViewModel @Inject constructor(
                 agentId = effectiveAgentId(),
             )
         ) {
-            is AnResult.Ok -> _uiState.value = _uiState.value.copy(messages = result.value, error = null)
+            is AnResult.Ok -> _uiState.value = _uiState.value.copy(
+                messages = result.value,
+                error = null,
+                streamingSteps = emptyList(),
+            )
             is AnResult.Err -> _uiState.value = _uiState.value.copy(error = result.error.toUiText())
         }
     }
@@ -303,6 +316,10 @@ class ChatViewModel @Inject constructor(
         if (!execOk.assistantMessageId.isNullOrBlank()) {
             pendingAssistantId = execOk.assistantMessageId
         }
+        // Adopt server-minted topic so the post-stream reload hits history.
+        if (!execOk.topicId.isNullOrBlank() && _uiState.value.activeTopicId == null) {
+            _uiState.value = _uiState.value.copy(activeTopicId = execOk.topicId)
+        }
 
         val endpoint =
             when (val cfg = agentApi.globalConfig(baseUrl)) {
@@ -351,8 +368,35 @@ class ChatViewModel @Inject constructor(
                         if (!event.assistantMessageId.isNullOrBlank()) {
                             pendingAssistantId = event.assistantMessageId
                         }
+                        // New text segment: seal the previous buffer as a
+                        // prelude step (transitional text ahead of tools).
+                        if (buffer.isNotBlank()) {
+                            val sealed = StreamSegment(text = buffer.toString().trim())
+                            buffer.clear()
+                            _uiState.value = _uiState.value.copy(
+                                streamingSteps = _uiState.value.streamingSteps + sealed,
+                                streamingText = "",
+                            )
+                        }
                     }
                     is GatewayEvent.StreamEnded -> Unit
+                    is GatewayEvent.ToolStarted -> {
+                        val sealed = StreamSegment(toolName = event.name, toolDone = false)
+                        _uiState.value = _uiState.value.copy(
+                            streamingSteps = _uiState.value.streamingSteps + sealed,
+                        )
+                    }
+                    is GatewayEvent.ToolEnded -> {
+                        val steps = _uiState.value.streamingSteps
+                        val idx = steps.indexOfLast { it.toolName != null && !it.toolDone }
+                        if (idx >= 0) {
+                            _uiState.value = _uiState.value.copy(
+                                streamingSteps = steps.toMutableList().also {
+                                    it[idx] = it[idx].copy(toolDone = true)
+                                },
+                            )
+                        }
+                    }
                     is GatewayEvent.RunEnded -> {
                         if (reasoningStart != 0L && reasoningSecs == null) {
                             reasoningSecs = (System.currentTimeMillis() - reasoningStart) / 1000.0
@@ -366,6 +410,8 @@ class ChatViewModel @Inject constructor(
                             reasoningDuration = reasoningSecs,
                             createdAt = System.currentTimeMillis(),
                         )
+                        // Keep local steps visible until the server history
+                        // reload lands (it carries grouped tool records).
                         _uiState.value = _uiState.value.copy(
                             messages = _uiState.value.messages + assistant,
                             streaming = false,
@@ -373,6 +419,7 @@ class ChatViewModel @Inject constructor(
                             streamingReasoning = "", streamingReasoningSecs = null,
                         )
                         activeOperationId = null
+                        loadMessages()
                     }
                     is GatewayEvent.RunError -> {
                         val msg =

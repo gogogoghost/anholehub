@@ -124,9 +124,16 @@ private fun ChatScreenWired(
     }
 
     val totalItems = uiState.messages.size + if (uiState.streaming) 1 else 0
-    LaunchedEffect(totalItems, uiState.streamingText, uiState.streamingReasoning) {
-        if (totalItems > 0) {
-            runCatching { listState.scrollToItem(totalItems - 1) }
+    // Follow the tail while streaming, but never yank: only auto-scroll
+    // when already near the bottom (user scrolled up = hands off), and
+    // animate instead of jumping to avoid layout thrash at 12fps.
+    LaunchedEffect(totalItems, uiState.streamingText, uiState.streamingReasoning, uiState.streaming) {
+        if (totalItems <= 0) return@LaunchedEffect
+        val info = listState.layoutInfo
+        val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+        val nearBottom = lastVisible < 0 || totalItems - 1 - lastVisible <= 1
+        if (nearBottom) {
+            runCatching { listState.animateScrollToItem(totalItems - 1) }
         }
     }
 
@@ -166,6 +173,7 @@ private fun ChatScreenWired(
         streamingText = uiState.streamingText,
         streamingReasoning = uiState.streamingReasoning,
         streamingReasoningSecs = uiState.streamingReasoningSecs,
+        streamingSteps = uiState.streamingSteps,
         topics = uiState.topics,
         topicsLoading = uiState.topicsLoading,
         activeTopicId = uiState.activeTopicId,
@@ -195,6 +203,7 @@ private fun ChatContent(
     streamingText: String,
     streamingReasoning: String = "",
     streamingReasoningSecs: Double? = null,
+    streamingSteps: List<ChatViewModel.StreamSegment> = emptyList(),
     topics: List<ChatTopic>,
     topicsLoading: Boolean = false,
     activeTopicId: String?,
@@ -417,10 +426,9 @@ private fun ChatContent(
                         }
                         if (streaming) {
                             item(key = "streaming", contentType = "streaming") {
-                                AssistantMessageRow(
-                                    message = ChatMessage(role = "assistant"),
+                                StreamingTurn(
+                                    steps = streamingSteps,
                                     agentName = title,
-                                    isStreaming = true,
                                     streamingText = streamingText,
                                     streamingReasoning = streamingReasoning,
                                     streamingReasoningSecs = streamingReasoningSecs,

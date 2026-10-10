@@ -30,4 +30,7 @@
     <string name="chat_thought_secs">已深度思考 %.1f 秒</string>
 
     <string name="chat_steps_ran">执行了 %1$d 个步骤</string>
+
+    <string name="chat_steps_running">正在执行 %1$d 个步骤…</string>
+    <string name="chat_tool_unnamed">工具调用</string>
 </resources>

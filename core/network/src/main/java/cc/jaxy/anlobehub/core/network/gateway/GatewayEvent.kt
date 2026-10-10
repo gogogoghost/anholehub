@@ -25,6 +25,10 @@ sealed interface GatewayEvent {
     /** 本轮可见输出结束（操作可能仍在收尾，以 [RunEnded] 为准）。 */
     data class StreamEnded(val operationId: String) : GatewayEvent
 
+    /** 工具调用开始/结束（流式 steps 行素材；name 尽力提取）。 */
+    data class ToolStarted(val operationId: String, val name: String?) : GatewayEvent
+    data class ToolEnded(val operationId: String, val name: String?) : GatewayEvent
+
     /** 运行终结：`agent_runtime_end` / `session_complete` / terminal status。 */
     data class RunEnded(
         val operationId: String,

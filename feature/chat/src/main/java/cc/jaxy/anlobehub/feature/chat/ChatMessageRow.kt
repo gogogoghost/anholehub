@@ -69,7 +69,9 @@ fun AssistantMessageRow(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = spacing.s)
-            .animateContentSize(),
+            // No animateContentSize while streaming: per-token layout
+            // animation reads as flicker at 12fps updates.
+            .then(if (isStreaming) Modifier else Modifier.animateContentSize()),
         verticalArrangement = Arrangement.spacedBy(spacing.xs),
     ) {
         Row(
@@ -445,6 +447,113 @@ fun CitationRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Live turn: sealed prelude/tool steps collapse into a steps row while the
+ * current answer streams borderless beneath.
+ */
+@Composable
+fun StreamingTurn(
+    steps: List<ChatViewModel.StreamSegment>,
+    agentName: String?,
+    streamingText: String,
+    streamingReasoning: String,
+    streamingReasoningSecs: Double?,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (steps.isNotEmpty()) {
+            StreamingStepsRow(steps = steps)
+        }
+        AssistantMessageRow(
+            message = ChatMessage(role = "assistant"),
+            agentName = agentName,
+            isStreaming = true,
+            streamingText = streamingText,
+            streamingReasoning = streamingReasoning,
+            streamingReasoningSecs = streamingReasoningSecs,
+        )
+    }
+}
+
+@Composable
+private fun StreamingStepsRow(
+    steps: List<ChatViewModel.StreamSegment>,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val spacing = MaterialTheme.spacing
+    val running = steps.any { it.toolName != null && !it.toolDone }
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.s),
+        ) {
+            if (running) {
+                ThinkingDots()
+            }
+            Text(
+                text = if (running) {
+                    stringResource(R.string.chat_steps_running, steps.size)
+                } else {
+                    stringResource(R.string.chat_steps_ran, steps.size)
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = if (running) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (expanded) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                modifier = Modifier.padding(top = spacing.xs),
+            ) {
+                steps.forEach { step ->
+                    if (step.toolName != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(spacing.s),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Build,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = step.toolName.ifBlank {
+                                    stringResource(R.string.chat_tool_unnamed)
+                                } + if (step.toolDone) "" else " …",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = step.text,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

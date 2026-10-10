@@ -31,4 +31,7 @@
     <string name="chat_thought_secs">Thought for %.1fs</string>
 
     <string name="chat_steps_ran">Ran %1$d steps</string>
+
+    <string name="chat_steps_running">Running %1$d steps…</string>
+    <string name="chat_tool_unnamed">Tool call</string>
 </resources>

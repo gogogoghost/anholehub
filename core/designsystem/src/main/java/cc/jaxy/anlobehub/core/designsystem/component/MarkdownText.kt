@@ -10,7 +10,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -109,7 +112,7 @@ fun MarkdownText(
         },
     )
     if (streaming) {
-        Markdown(
+        StreamingMarkdown(
             content = content,
             typography = typography,
             colors = colors,
@@ -127,6 +130,45 @@ fun MarkdownText(
             )
         }
     }
+}
+
+/**
+ * Incremental streaming render: diffs against the last emitted text and
+ * appends only the delta, so already-laid-out blocks never re-parse
+ * (the main source of scroll jumping during generation).
+ */
+@Composable
+private fun StreamingMarkdown(
+    content: String,
+    typography: com.mikepenz.markdown.model.MarkdownTypography,
+    colors: com.mikepenz.markdown.model.MarkdownColors,
+    components: com.mikepenz.markdown.compose.components.MarkdownComponents,
+    modifier: Modifier = Modifier,
+) {
+    val state = com.mikepenz.markdown.model.rememberStreamingMarkdownState()
+    var emitted by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    androidx.compose.runtime.LaunchedEffect(content) {
+        // Streaming text is append-only; a shorter value means restart.
+        val delta = if (content.startsWith(emitted)) {
+            content.substring(emitted.length)
+        } else {
+            emitted = ""
+            content
+        }
+        // Fresh state per message instance; reset requires recomposition key.
+        if (delta.isNotEmpty()) {
+            state.append(delta)
+            emitted = content
+        }
+    }
+    // Key on nothing: the same state instance accumulates across chunks.
+    Markdown(
+        streamingMarkdownState = state,
+        typography = typography,
+        colors = colors,
+        components = components,
+        modifier = modifier,
+    )
 }
 
 /**

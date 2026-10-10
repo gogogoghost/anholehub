@@ -380,6 +380,9 @@ internal fun mapAgentEvent(
 
         "stream_end" -> GatewayEvent.StreamEnded(opId)
 
+        "tool_start" -> GatewayEvent.ToolStarted(opId, toolNameOf(data))
+        "tool_end" -> GatewayEvent.ToolEnded(opId, toolNameOf(data))
+
         // 只有本 op 的终结才算终结；镜像成员（member_runtime_end 或他方 id）绝不断流。
         "agent_runtime_end" ->
             if (opId == defaultOperationId) {
@@ -393,6 +396,13 @@ internal fun mapAgentEvent(
         "error" -> GatewayEvent.RunError(opId, agentErrorMessage(data))
         else -> null
     }
+}
+
+private fun toolNameOf(data: JsonObject?): String? {
+    if (data == null) return null
+    return jsonString(data, "name")
+        ?: jsonString(data, "toolName")
+        ?: (data["tool"] as? kotlinx.serialization.json.JsonObject)?.let { jsonString(it, "name") }
 }
 
 internal fun agentErrorMessage(data: JsonObject?): String {
