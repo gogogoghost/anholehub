@@ -1,5 +1,6 @@
 package cc.jaxy.anlobehub.app
 
+import androidx.activity.BackEventCompat
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -130,44 +131,50 @@ fun AnlobehubNavHost() {
     NavHost(
         navController = navController,
         startDestination = resolvedStart,
-        // Gmail-style predictive-back-friendly transitions: subtle scale +
-        // small horizontal drift. Navigation Compose seeks these during the
-        // back gesture automatically (targetSdk 33+ enables predictive back).
+        // Forward push + tap-back share these; the back *gesture* uses the
+        // predictive* pair below (seek-driven, with swipeEdge direction).
         enterTransition = {
             slideInHorizontally(
-                initialOffsetX = { it / 8 },
+                initialOffsetX = { it / 3 },
                 animationSpec = tween(350, easing = FastOutSlowInEasing),
-            ) + fadeIn(animationSpec = tween(350)) +
-                scaleIn(
-                    initialScale = 0.97f,
-                    animationSpec = tween(350, easing = FastOutSlowInEasing),
-                )
+            ) + fadeIn(animationSpec = tween(350))
         },
         exitTransition = {
             scaleOut(
-                targetScale = 0.95f,
-                animationSpec = tween(350, easing = FastOutSlowInEasing),
-            ) + slideOutHorizontally(
-                targetOffsetX = { -it / 12 },
+                targetScale = 0.9f,
                 animationSpec = tween(350, easing = FastOutSlowInEasing),
             ) + fadeOut(animationSpec = tween(200))
         },
         popEnterTransition = {
             scaleIn(
-                initialScale = 0.95f,
-                animationSpec = tween(350, easing = FastOutSlowInEasing),
-            ) + slideInHorizontally(
-                initialOffsetX = { -it / 12 },
+                initialScale = 0.9f,
                 animationSpec = tween(350, easing = FastOutSlowInEasing),
             ) + fadeIn(animationSpec = tween(200))
         },
         popExitTransition = {
             slideOutHorizontally(
-                targetOffsetX = { it / 8 },
+                targetOffsetX = { it / 3 },
                 animationSpec = tween(350, easing = FastOutSlowInEasing),
             ) + fadeOut(animationSpec = tween(350)) +
                 scaleOut(
-                    targetScale = 0.97f,
+                    targetScale = 0.9f,
+                    animationSpec = tween(350, easing = FastOutSlowInEasing),
+                )
+        },
+        predictivePopEnterTransition = {
+            scaleIn(
+                initialScale = 0.9f,
+                animationSpec = tween(350, easing = FastOutSlowInEasing),
+            ) + fadeIn(animationSpec = tween(200))
+        },
+        predictivePopExitTransition = {
+            val dir = if (it == BackEventCompat.EDGE_RIGHT) -1 else 1
+            slideOutHorizontally(
+                targetOffsetX = { dir * it / 3 },
+                animationSpec = tween(350, easing = FastOutSlowInEasing),
+            ) + fadeOut(animationSpec = tween(350)) +
+                scaleOut(
+                    targetScale = 0.9f,
                     animationSpec = tween(350, easing = FastOutSlowInEasing),
                 )
         },
