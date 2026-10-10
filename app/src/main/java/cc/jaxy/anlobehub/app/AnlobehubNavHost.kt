@@ -1,8 +1,11 @@
 package cc.jaxy.anlobehub.app
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
@@ -127,10 +130,47 @@ fun AnlobehubNavHost() {
     NavHost(
         navController = navController,
         startDestination = resolvedStart,
-        enterTransition = { slideInHorizontally(initialOffsetX = { it / 4 }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)) },
-        exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 4 }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)) },
-        popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 4 }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)) },
-        popExitTransition = { slideOutHorizontally(targetOffsetX = { it / 4 }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)) },
+        // Gmail-style predictive-back-friendly transitions: subtle scale +
+        // small horizontal drift. Navigation Compose seeks these during the
+        // back gesture automatically (targetSdk 33+ enables predictive back).
+        enterTransition = {
+            slideInHorizontally(
+                initialOffsetX = { it / 8 },
+                animationSpec = tween(350, easing = FastOutSlowInEasing),
+            ) + fadeIn(animationSpec = tween(350)) +
+                scaleIn(
+                    initialScale = 0.97f,
+                    animationSpec = tween(350, easing = FastOutSlowInEasing),
+                )
+        },
+        exitTransition = {
+            scaleOut(
+                targetScale = 0.95f,
+                animationSpec = tween(350, easing = FastOutSlowInEasing),
+            ) + slideOutHorizontally(
+                targetOffsetX = { -it / 12 },
+                animationSpec = tween(350, easing = FastOutSlowInEasing),
+            ) + fadeOut(animationSpec = tween(200))
+        },
+        popEnterTransition = {
+            scaleIn(
+                initialScale = 0.95f,
+                animationSpec = tween(350, easing = FastOutSlowInEasing),
+            ) + slideInHorizontally(
+                initialOffsetX = { -it / 12 },
+                animationSpec = tween(350, easing = FastOutSlowInEasing),
+            ) + fadeIn(animationSpec = tween(200))
+        },
+        popExitTransition = {
+            slideOutHorizontally(
+                targetOffsetX = { it / 8 },
+                animationSpec = tween(350, easing = FastOutSlowInEasing),
+            ) + fadeOut(animationSpec = tween(350)) +
+                scaleOut(
+                    targetScale = 0.97f,
+                    animationSpec = tween(350, easing = FastOutSlowInEasing),
+                )
+        },
     ) {
         composable<ServerRoute> {
             ServerScreen(onServerConfirmed = { baseUrl ->
